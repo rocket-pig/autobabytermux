@@ -36,7 +36,11 @@ Question: `
 
 ![pix](https://i.ibb.co/12SdWkF/Screenshot-2023-05-02-19-24-40.png)
 
-*Usage:
+
+$$$ Usage:
 There's nothing to know. Have an OpenAI key ready, stick it on first line of script. Run ```npm install langchain openai```. Run ```node babyautotermux.js``` and the interactive CLI starts. The Welcome message describes that you use '[p]' to start the 'autonomous' chain of events. If you dont use [p] its *just* a standard chat interface with chatGPT.  
 
 I really would be so...itd make my day if people liked super minimalist shit like me and wanted to hack on this! And not even like pull requests or wearing pants required. These LLMs are the coolest shit to happen since gopher
+
+One more
+![img](https://i.ibb.co/6JnYq2B/Screenshot-2023-05-02-17-54-40.png)
