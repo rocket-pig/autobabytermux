@@ -1,5 +1,5 @@
 # autobabytermux
-Autonomous Agent? I loved the idea of babyAGI and AutoGPT. But ..you wouldnt believe me but I program on a phone. And in that i-ate-the-tiny-mushroom place, I cant install numpy/pandas/everythingreactevermade.  But I was desperate to play so I had to make do.  It requires ```npm install langchain openai``` and THATS IT. AND: It fucking works! But needs tons of new stuff. New paragraph
+Autonomous Agent? I loved the idea of babyAGI and AutoGPT. But ..you wouldnt believe me but I program on a phone. And in that i-ate-the-shrink-me-mushroom place, I cant install numpy/pandas/everythingreactevermade.  But I was desperate to play so I had to make do.  It requires ```npm install langchain openai``` and THATS IT. AND: It fucking works! But needs tons of new stuff. New paragraph
 
 Whatever. Here is pre prompt. I stole the 'QOTAR' (Question, Observation, Thought, Action, Result) 'chain-of-thought' concepts from one/both of the above 'autonomous agent' projects. And reinvented it because Phone. AND: ..Its..Alieeeeve. And. A wild hair gave me the mad idea some others might want to hack on it (or maybe I just need some sleep). Anywho. Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
