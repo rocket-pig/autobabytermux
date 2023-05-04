@@ -189,6 +189,17 @@ function chatloop() {
     rl.prompt()
     
     rl.on('line', async (input) => {
+    //new: interact directly with the sandbox
+    //by prefacing with [s]:
+    if(input.startsWith('[s]')) {
+        //remove '[s]'
+      let temp = input.trim().slice(3).trim();
+      console.log('got temp:',temp)
+        let blah = sandbox_run(temp)
+        console.log('after sandbox run:',blah )
+    };
+        
+        
     if(input.startsWith('[p]')) {
         let responseObj;
         
@@ -196,7 +207,7 @@ function chatloop() {
       if(input.length == 3) { input = '[p] use repl to test simple reading and writing of one file: data.txt.' }
       
       //remove '[p]'
-      newprompt = pp1 + input.trim().slice(3)+"\n";
+      newprompt = pp1 + input.trim().slice(3).trim()+"\n";
       //console.log('prompt is:',newprompt)
       
 /* /\/\/\/\ while loop /\/\/\/\/ */
@@ -246,7 +257,7 @@ function chatloop() {
               if(action.actionName == 'repl') {
               console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n')
               
-                  let evald = sandbox(action.actionArgs)
+                  let evald = sandbox_run(action.actionArgs)
                   
                   flog('\n----sandboxed VM Output:\n',JSON.stringify(evald),'\n--- END VM-----\n')
                   
@@ -281,7 +292,8 @@ function chatloop() {
           count+=1
       } //end while, and below, if '[p]'
         
-    } else {
+    }
+    if(!input.startsWith('[s]') && !input.startsWith('[p]')) {
         //no preprompt, regular chat.
         response = await generateOutput(input);  
         console.log(C_Green,response);
@@ -305,15 +317,75 @@ loadModules().catch(error => {
 });
 
 
+
+
+
 //sandhox eval(). anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
 var stdout= [];
 //var fs = require('fs')
 //var vm = require('vm')
-function sandbox(code) {
+
+
+
+//cheap virtual fs so LLM can have persistent
+//'files' in memory:
+// Define a virtual file system object with read/write methods
+
+const virtualFs = {
+  files: {},
+readFileSync: function(path, options) {
+  return new Promise((resolve, reject) => {
+    virtualFs.readFile(path, options, (err, data) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(data);
+      }
+    });
+  });
+},
+writeFileSync: function(path, data, options) {
+  return new Promise((resolve, reject) => {
+    virtualFs.writeFile(path, data, options, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+},
+  readFile: function (path, options, callback) {
+    const file = this.files[path];
+    if (!file) {
+      return callback(new Error(`ENOENT: no such file or directory, open '${path}'`));
+    }
+    callback(null, options.encoding ? file.toString(options.encoding) : file);
+  },
+  writeFile: function (path, data, options, callback) {
+    this.files[path] = options.encoding ? Buffer.from(data, options.encoding) : data;
+    callback();
+  }
+};
+
+
+//function sandbox(code) {
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
     const sandbox = {
     ...global,
+    fs: {
+    readFile: function(path, options, callback) {
+      virtualFs.readFile(path, options, callback);
+    },
+    writeFile: function(path, data, options, callback) {
+      if (typeof options === 'function') {
+        callback = options;
+        options = {};
+      }
+      virtualFs.writeFile(path, data, options, callback);
+    }
+  },
     v_stdout: "",
     v_stderr: "",
     v_console: "",
@@ -340,11 +412,12 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
     }
   },
     require: function(moduleName){
-    if (!allowedFunctions.includes(moduleName)) {
+    if(moduleName != 'fs') {//fake fs override
+    if (!allowedFunctions.includes(moduleName) ) {
       throw new Error(`Module "${moduleName}" is not allowed in this sandbox.`);
     }
     return require(moduleName);
-  },
+  }else { return sandbox.fs }},
     module: module,
     exports: typeof exports !== 'undefined' ? exports : {},
     __dirname: typeof __dirname !== 'undefined' ? __dirname : "",
@@ -352,12 +425,23 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
   };
 
   for (const func of allowedFunctions) {
+      if(func != 'fs') {
      sandbox[func] = global[func];
+      }
   }
-};
 
- 
- 
+
+//global reusable
+var vm_instance = vm.createContext(sandbox)
+
+
+function sandbox_run(code){
+    
+//reset output logs    
+sandbox.v_stdout="";
+sandbox.v_stderr="";
+sandbox.v_console="";
+
 //catch vm throws INSIDE vm so LLM can see them.
 //the 0. & 1. prefix is to help see where things were thrown.
 try {
@@ -370,7 +454,10 @@ try {
 `;
 
 // Execute the code in the vm context
-vm.runInContext(code, vm.createContext(sandbox));
+//vm.runInContext(code, vm.createContext(sandbox));
+vm.runInContext(code,vm_instance);
+
+
 
 } catch (error) {
     console.log('1. Sandbox Error: Caught: ',error)
@@ -388,10 +475,7 @@ v_stderr = sandbox.v_stderr || 'NA'
 //why does console response always start with 'undefined'? dont care moving on
 if(typeof v_console == 'string' && v_console.startsWith('undefined')) v_console = v_console.substring(9)
 
-if(typeof v_stdout == 'array') {
-v_stdout = v_stdout.filter(Boolean);
-}
- return {
+return {
      v_console: v_console,
      stdout: v_stdout,
      stderr: v_stderr
