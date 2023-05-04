@@ -2,7 +2,20 @@
 
 Chain-of-thought reasoning for chatGPT. Put your API key in, ask a question, and it will do multi-turn feedback reasoning, use plugins (the js interpreter is working great), and eventually arrive at an answer. 
 
-Autonomous Agent? In the spirit of langchain babyAGI AutoGPT etc. But ...written for a phone, on a phone.  It requires *langchain* and *openai* npm modules and THATS IT. 
+I had gpt write me a better overview as 'front of house' has never been my strong suit:
+
+>Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins (including a working JavaScript interpreter) to arrive at an answer. 
+
+>The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
+
+>At its core, autobabytermux is an autonomous AI agent that can run entirely on your phone. It requires only two npm modules - langchain and openai - to function. 
+
+>The QOTAR (Question, Observation, Thought, Action, Result) chain-of-thought framework guides the reasoning process, allowing the agent to efficiently arrive at an answer to your question. 
+
+>It is worth noting that autobabytermux is a massively micro version of similar projects that typically require advanced dependencies such as numpy and pandas. Because autobabytermux is designed to run within Termux on a phone, it is much more lightweight and accessible. 
+
+
+
 
 ### Usage:
 
