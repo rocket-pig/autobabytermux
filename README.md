@@ -2,7 +2,7 @@
 
 Chain-of-thought reasoning for chatGPT. Put your API key in, ask a question, and it will do multi-turn feedback reasoning, use plugins (the js interpreter is working great), and eventually arrive at an answer. 
 
-Autonomous Agent? In the spirit of langchain babyAGI AutoGPT etc. But ...written for a phone, on a phone.  It requires Depends on *langchain* and *openai* npm modules and THATS IT. 
+Autonomous Agent? In the spirit of langchain babyAGI AutoGPT etc. But ...written for a phone, on a phone.  It requires *langchain* and *openai* npm modules and THATS IT. 
 
 ### Usage:
 
