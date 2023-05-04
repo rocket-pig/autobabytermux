@@ -1,11 +1,13 @@
 
 
 
-var YOUR_API_KEY = 'yep yep yep!'
+var YOUR_API_KEY = 'you know the one'
 
 // How many times can chain-of-thought
 // iterate autonomously? 
 const total_allowed_loops = 10;
+
+
 
 //training preprompt
 var pp1 = `
@@ -43,13 +45,31 @@ Finish: The comparison between Margaret Thatcher's weight and two hamhocks shows
 Question: `
 
 
+const fs = require('fs');
+const vm = require('vm');
+
+
+// `tail -f autobabytermux_log.txt` for 
+// a slightly more verbose
+// look at reasoning / repl vm noise
+prune_log() //prunes to < 1K lines.
+function flog(...args) {
+  const str = args.join(' ')+'\n';
+  fs.appendFileSync('autobabytermux_log.txt', str);
+}
+
+
+
+//begin loadModules context
 async function loadModules() {
-  const openaiModule = await import("langchain/chat_models/openai");
+      const openaiModule = await import("langchain/chat_models/openai");
   const schemaModule = await import("langchain/schema");
   const { ChatOpenAI } = openaiModule;
   const { HumanChatMessage, SystemChatMessage } = schemaModule;
   const chat = new ChatOpenAI({ openAIApiKey: YOUR_API_KEY, temperature: 0.7, timeout: 50000 });
   
+
+
 
 async function generateOutput(message) {
   let response = await chat.call([
@@ -72,16 +92,6 @@ function vlog(...args) {
     //console.log(...args);
 }
 
-
-// `tail -f autobabytermux_log.txt` for 
-// a slightly more verbose
-// look at reasoning / repl vm noise
-prune_log() //prunes to < 1K lines.
-const fs = require('fs');
-function flog(...args) {
-  const str = args.join(' ')+'\n';
-  fs.appendFileSync('autobabytermux_log.txt', str);
-}
 
 
 //the much improved input parser.
@@ -298,15 +308,16 @@ loadModules().catch(error => {
 
 //sandhox eval(). prevents fs writes ONLY.
 //everything else open.
-const vm = require('vm');
-const fs = require('fs');
+
 
 var commandOutput= [];
 
+
+
 function sandbox(code) {
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
-const disallowedFunctions = ['fs.writeFile', 'fs.writeFileSync', 'fs.appendFile', 'fs.appendFileSync', 'fs.unlink', 'fs.unlinkSync', 'fs.rename', 'fs.renameSync', 'fs.mkdir', 'fs.mkdirSync', 'fs.rmdir', 'fs.rmdirSync', 'fs.watch', 'fs.watchFile', 'fs.unwatchFile', 'fs.createWriteStream', 'fs.symlink', 'fs.symlinkSync', 'fs.link', 'fs.linkSync', 'fs.chmod', 'fs.chmodSync', 'fs.chown', 'fs.chownSync', 'fs.utimes', 'fs.utimesSync', 'fs.fchmod', 'fs.fchmodSync', 'fs.fchown', 'fs.fchownSync', 'fs.futimes', 'fs.futimesSync', 'fs.access', 'fs.accessSync', 'fs.existsSync', 'fs.stat', 'fs.statSync', 'fs.lstat', 'fs.lstatSync', 'fs.fstat', 'fs.fstatSync', 'fs.readlink', 'fs.readlinkSync', 'fs.realpath', 'fs.realpathSync', 'fs.createReadStream'];
-    
+
+const disallowedFunctions = ['fs']
 
     const sandbox = {
     ...global,
@@ -318,21 +329,24 @@ const disallowedFunctions = ['fs.writeFile', 'fs.writeFileSync', 'fs.appendFile'
     
     require: require,
     module: module,
-    exports: exports,
-    __dirname: __dirname,
-    __filename: __filename,
+    exports: typeof exports !== 'undefined' ? exports : {},
+    __dirname: typeof __dirname !== 'undefined' ? __dirname : "",
+    __filename: typeof __filename !== 'undefined' ? __filename : "",
   };
 
   for (const func of allowedFunctions) {
-    sandbox[func] = global[func];
+     sandbox[func] = global[func];
   }
 
  for (const func of disallowedFunctions) {
   const parts = func.split('.');
   const parentObj = parts.slice(0, parts.length - 1).reduce((obj, key) => obj && obj[key], sandbox);
+
   if (!parentObj) {
     continue; // skip this function if the parent object is not defined
   }
+  
+  
   const lastKey = parts[parts.length - 1];
   parentObj[lastKey] = () => {
     console.log('1. Sandbox Error: Agent requested',func,'which is currently not permitted.')
@@ -373,7 +387,7 @@ v_stdout = v_stdout.filter(Boolean);
      commandOutput: v_stdout
  }
  
-}//END of sandbox
+}//END of sandbox context
 
   
 function prune_log() {
