@@ -1,7 +1,21 @@
 # autobabytermux
-Autonomous Agent? I loved the idea of babyAGI and AutoGPT. But ..you wouldnt believe me but I program on a phone. And in that i-ate-the-shrink-me-mushroom place, I cant install numpy/pandas/everythingreactevermade.  But I was desperate to play so I had to make do.  It requires ```npm install langchain openai``` and THATS IT. AND: It fucking works! But needs tons of new stuff. New paragraph
 
-Whatever. Here is pre prompt. I stole the 'QOTAR' (Question, Observation, Thought, Action, Result) 'chain-of-thought' concepts from one/both of the above 'autonomous agent' projects. And reinvented it because Phone. AND: ..Its..Alieeeeve. And. A wild hair gave me the mad idea some others might want to hack on it (or maybe I just need some sleep). Anywho. Autonomous AI Agent, on your burner. Shrugs rite? What a world
+Chain-of-thought reasoning for chatGPT. Put your API key in, ask a question, and it will do multi-turn feedback reasoning, use plugins (the js interpreter is working great), and eventually arrive at an answer. 
+
+Autonomous Agent? In the spirit of langchain babyAGI AutoGPT etc. But ...written for a phone, on a phone.  It requires Depends on *langchain* and *openai* npm modules and THATS IT. 
+
+### Usage:
+
+Have an OpenAI key ready, stick it on first line of script. Run 
+
+```npm install langchain openai```. Then, run 
+
+```node babyautotermux.js``` 
+
+and the interactive CLI starts. The Welcome message describes that a prompt prefaced with '[p]' will start the chain-of-thought chain-of-events. You can also just chat with chatGPT normally.
+
+
+Here is pre prompt. I stole the 'QOTAR' (Question, Observation, Thought, Action, Result) 'chain-of-thought' concepts from one/both of the above 'autonomous agent' projects. And reinvented it because Phone.  Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
 ```
 Available plugins:
@@ -34,13 +48,22 @@ Finish: The comparison between Margaret Thatcher's weight and two hamhocks shows
 Question: `
 ```
 
+### Latest:
+
+![url](https://i.ibb.co/bvsL8vs/Screenshot-2023-05-03-22-51-35.png)
+
+
+### Older, but you get the idea:
+
 ![pix](https://i.ibb.co/12SdWkF/Screenshot-2023-05-02-19-24-40.png)
 
 
-$$$ Usage:
-There's nothing to know. Have an OpenAI key ready, stick it on first line of script. Run ```npm install langchain openai```. Run ```node babyautotermux.js``` and the interactive CLI starts. The Welcome message describes that you use '[p]' to start the 'autonomous' chain of events. If you dont use [p] its *just* a standard chat interface with chatGPT.  
+### One more
 
-I really would be so...itd make my day if people liked super minimalist shit like me and wanted to hack on this! And not even like pull requests or wearing pants required. These LLMs are the coolest shit to happen since gopher
-
-One more
 ![img](https://i.ibb.co/6JnYq2B/Screenshot-2023-05-02-17-54-40.png)
+
+
+###Contributing
+
+If you want to contribute, pull requests or wearing pants not required. 
+You can even just yell at me in the Issues and link a gist, whatever works
