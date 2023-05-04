@@ -1,8 +1,6 @@
 # autobabytermux
 
-Chain-of-thought reasoning for chatGPT. Put your API key in, ask a question, and it will do multi-turn feedback reasoning, use plugins (the js interpreter is working great), and eventually arrive at an answer. 
-
-I had gpt write me a better overview as 'front of house' has never been my strong suit:
+In GPT's words:
 
 >Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins (including a working JavaScript interpreter) to arrive at an answer. 
 
