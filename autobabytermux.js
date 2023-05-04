@@ -1,12 +1,20 @@
-var YOUR_API_KEY = 'OPENAI KEY HERE'
 
+
+
+var YOUR_API_KEY = 'yep yep yep!'
+
+// How many times can chain-of-thought
+// iterate autonomously? 
+const total_allowed_loops = 10;
+
+//training preprompt
 var pp1 = `
 Available plugins:
 Google Search:
 Result = Search[phrase]
-Node.js REPL:
+Node.js interpreter:
 Result = REPL[inputString]
-NOTE: Printing to sdout or console will NOT return anything to Result.
+NOTE: This is the Node.js REPL, it is NOT a bash prompt.
 Rules: All responses follow the same flow: Observation, Thought, Action, (these three repeated if necessary), and finally Finish.
 Each line begins with keyword to signify which. Input MUST be on a single line or will get truncated, especially when using plugins.
 [BEGIN]
@@ -14,7 +22,9 @@ Question: Write a function that calculates the area of a circle with radius 5 an
 Observation: I'm being asked to do math.
 Thought: I can use the REPL to answer this.
 Action: REPL[function calculateArea(radius) { return Math.PI * radius * radius; } calculateArea(5);]
-Result: 78.53981633974483
+Result: 
+Command Output: 78.53981633974483
+Console Output: N/A
 Finish: The function to calculate the area of a circle with a given radius is: \`function calculateArea(radius) { return Math.PI * radius * radius; }; calculateArea(5);\`
 Question: Does Margaret Thatcher really weigh less than two hamhocks? 
 Thought: I need to find out Margaret Thatcher's weight and the weight of two hamhocks.
@@ -24,13 +34,14 @@ Action: Search[weight of 1 hamhock]
 Result: average hamhock weight 10 lbs
 Observation: Hamhocks weigh around 10 pounds.
 Thought: I can calculate now.
-Action: REPL[const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; isLighter;]
-Result: false
-Observation: The output is false, which means Margaret Thatcher weighs more than two hamhocks.
+Action: REPL[const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; console.log(isLighter);]
+Result: 
+Command Output: N/A
+Console Output: false
+Observation: console.log(isLighter) prints false, which means Margaret Thatcher weighs more than two hamhocks.
 Finish: The comparison between Margaret Thatcher's weight and two hamhocks shows that she weighs more: \`const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; isLighter;\`
 Question: `
 
-var appended_output;
 
 async function loadModules() {
   const openaiModule = await import("langchain/chat_models/openai");
@@ -38,10 +49,7 @@ async function loadModules() {
   const { ChatOpenAI } = openaiModule;
   const { HumanChatMessage, SystemChatMessage } = schemaModule;
   const chat = new ChatOpenAI({ openAIApiKey: YOUR_API_KEY, temperature: 0.7, timeout: 50000 });
-  //everything is inside loadModules:
-
-
-
+  
 
 async function generateOutput(message) {
   let response = await chat.call([
@@ -58,16 +66,21 @@ async function generateOutput(message) {
 }
 
 
+//uncomment for a lot of debug noise in CLI.
 function vlog(...args) {
     //youll wish you hadnt:
     //console.log(...args);
 }
 
-const fs = require('fs');
 
+// `tail -f autobabytermux_log.txt` for 
+// a slightly more verbose
+// look at reasoning / repl vm noise
+prune_log() //prunes to < 1K lines.
+const fs = require('fs');
 function flog(...args) {
   const str = args.join(' ')+'\n';
-  fs.appendFileSync('log.txt', str);
+  fs.appendFileSync('autobabytermux_log.txt', str);
 }
 
 
@@ -105,7 +118,7 @@ function convertToObj(inputString) {
             const actionArgs = action.substring(firstBracketIndex + 1, lastBracketIndex);
             //save to obj
             obj.Action = { actionName, actionArgs }
-            console.log('Parser Debug: obj.Action is:',JSON.stringify(obj.Action))
+            flog('Parser Debug: obj.Action is:',JSON.stringify(obj.Action))
         } catch(e) {
             flog('Caught: malformed Action statement, skipping:',e)
             //we need to return something still, else fake Finishes will sneak past.
@@ -115,7 +128,7 @@ function convertToObj(inputString) {
 
     const finish = findLine(lines,'Finish:')
     if (finish) {
-        if (!obj.Action && !obj.Result && !obj.Thought && !obj.Observation) { // Only assign Finish if solo
+        if (!obj.Action && !obj.Result && !obj.Thought && !obj.Observation && hasActed) { // Only assign Finish if solo, AND if Action has been taken (toggled in 'hasActed')
           obj.Finish = finish
         } else {
           flog('(Deleted Finish as result was invented - Result not yet provided.)');
@@ -128,13 +141,12 @@ function convertToObj(inputString) {
 
 //globals because scope inside multinested 'while'...its too miserable.
 var isFinished = false;
+var hasActed = false;
 var count =0;
 var response = ""; var output = "";
-var appended_output = ""; var newprompt;
+var newprompt;
 var preprompt = pp1;
 
-//stop from endlessness
-const total_allowed_loops = 10;
 
 //'Ctrl-C' first exits chain-of-thought,
 //2nd time exits CLI.
@@ -171,7 +183,7 @@ function chatloop() {
         let responseObj;
         
       //troubleshoot shortcut [remove me]    
-      if(input.length == 3) { input = '[p] calculate 12827469447/12324556' }
+      if(input.length == 3) { input = '[p] create script that prints 20 odd numbers ,and test it in repl.' }
       
       //remove '[p]'
       newprompt = pp1 + input.trim().slice(3)+"\n";
@@ -214,34 +226,37 @@ function chatloop() {
           
           if('Action' in responseObj) {
            let action = responseObj['Action']
-           if(typeof action == 'object') {
+           if(typeof action == 'object' && action.actionName) {
               action.actionName = action.actionName.toLowerCase();
-              //console.log('GOT ACTION: ',action)
+            //dont go further on invented plugin names:
+            if(action.actionName == 'repl' || action.actionName == 'search') {
+                //Refuse to accept Finish if the agent has never taken an Action. 
+                  hasActed = true;
               
               if(action.actionName == 'repl') {
-              console.log(C_Blue,'-------------------- Plugin: REPL[]: --------------------\n')
+              console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n')
               
                   let evald = sandbox(action.actionArgs)
                   
-                  if(typeof(evald) == 'object') {
-                      evald = sandbox(JSON.stringify(action.actionArgs))
-                  }
+                  flog('\n----sandboxed VM Output:\n',evald,'\n--- END VM-----\n')
+                  
                   output+='\nAction: REPL['+action.actionArgs+']'
-                  let resultString = '\nResult: ' + evald;
+                  let resultString = '\nResult:\nCommand Output: ' + (evald.commandOutput || 'N/A') + '\nConsole Output: ' + (evald.consoleOutput || 'N/A')+'\n';
+
                   output+=resultString
                   
                   console.log(C_Blue,'Plugin: REPL[ '+action.actionArgs+' ]:\n')
-                  console.log(C_Blue,'>>>>  '+resultString+'\n>>>>');
-                    console.log(C_Blue,'<<<<<<<<<<<<<END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
-
-
-                  
+                  console.log(C_Blue,'>>>>'+resultString+'>>>>');
+                    console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
+                        
               }
+              //implement me
               if(action.actionName == "search"){
                   console.log("WARN: Search called, but search not implemented");
                   output+='\nAction: Search['+action.actionArgs+']'
                   output += 'Result: ' + '"Sorry, Search is offline."';
               }
+            }
             }
           }
         
@@ -285,24 +300,22 @@ loadModules().catch(error => {
 //everything else open.
 const vm = require('vm');
 const fs = require('fs');
-function sandbox(code) {
-    const allowedFunctions = [
-  'console', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate',
-  'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream',
-  'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm','Math'];
-  const disallowedFunctions = [
-    'fs.writeFile', 'fs.writeFileSync', 'fs.appendFile', 'fs.appendFileSync', 'fs.unlink', 'fs.unlinkSync', 'fs.rename',
-    'fs.renameSync', 'fs.mkdir', 'fs.mkdirSync', 'fs.rmdir', 'fs.rmdirSync', 'fs.watch', 'fs.watchFile',
-    'fs.unwatchFile', 'fs.createWriteStream', 'fs.symlink', 'fs.symlinkSync', 'fs.link', 'fs.linkSync',
-    'fs.chmod', 'fs.chmodSync', 'fs.chown', 'fs.chownSync', 'fs.utimes', 'fs.utimesSync', 'fs.fchmod', 'fs.fchmodSync',
-    'fs.fchown', 'fs.fchownSync', 'fs.futimes', 'fs.futimesSync', 'fs.access', 'fs.accessSync', 'fs.existsSync',
-    'fs.stat', 'fs.statSync', 'fs.lstat', 'fs.lstatSync', 'fs.fstat', 'fs.fstatSync', 'fs.readlink',
-    'fs.readlinkSync', 'fs.realpath', 'fs.realpathSync', 'fs.createReadStream'
-];
 
-  const sandbox = {
+var commandOutput= [];
+
+function sandbox(code) {
+const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
+const disallowedFunctions = ['fs.writeFile', 'fs.writeFileSync', 'fs.appendFile', 'fs.appendFileSync', 'fs.unlink', 'fs.unlinkSync', 'fs.rename', 'fs.renameSync', 'fs.mkdir', 'fs.mkdirSync', 'fs.rmdir', 'fs.rmdirSync', 'fs.watch', 'fs.watchFile', 'fs.unwatchFile', 'fs.createWriteStream', 'fs.symlink', 'fs.symlinkSync', 'fs.link', 'fs.linkSync', 'fs.chmod', 'fs.chmodSync', 'fs.chown', 'fs.chownSync', 'fs.utimes', 'fs.utimesSync', 'fs.fchmod', 'fs.fchmodSync', 'fs.fchown', 'fs.fchownSync', 'fs.futimes', 'fs.futimesSync', 'fs.access', 'fs.accessSync', 'fs.existsSync', 'fs.stat', 'fs.statSync', 'fs.lstat', 'fs.lstatSync', 'fs.fstat', 'fs.fstatSync', 'fs.readlink', 'fs.readlinkSync', 'fs.realpath', 'fs.realpathSync', 'fs.createReadStream'];
+    
+
+    const sandbox = {
     ...global,
-    console: console,
+    
+    console: { 
+    log: (...args) => { 
+      sandbox.consoleOutput += args.join(' ') + '\n'; 
+    } }, 
+    
     require: require,
     module: module,
     exports: exports,
@@ -327,26 +340,59 @@ function sandbox(code) {
   };
 }
 
-  let result;
-  try {
-    const script = new vm.Script(code);
-    result = script.runInNewContext(sandbox);
-  } catch (error) {
-    if (error instanceof TypeError) {
-      
-      console.log('2. Sandbox Error: Caught TypeError:', error.message);
-      return;
-    } else {
-        console.log('3. Sandbox Error: Caught: ',error)
-      return error.toString().slice(0, 50) + '[...]';
-    }
-  }
-  if(result == undefined) {
-      return('JS sandbox execution finished without error, but did not return a value.')
-  }
-  return result;
-}
 
+//catch vm throws
+try {
+// stdout --> sandbox.commandOutput
+code = `commandOutput = (function() {
+  ${code}
+})();`;
+
+// Execute the code in the vm context
+vm.runInContext(code, vm.createContext(sandbox));
+
+} catch (error) {
+    console.log('Sandbox Error: Caught: ',error)
+    if(typeof consoleOutput == 'undefined')   consoleOutput = 'NA'
+    return { commandOutput: error.toString().slice(0, 50) + '[...]', consoleOutput };
+  }
+ 
+
+//slow that roll
+v_console = sandbox.consoleOutput || 'NA'
+v_stdout = sandbox.commandOutput || 'NA'
+
+//why does console response always start with 'undefined'? dont care moving on
+if(typeof v_console == 'string' && v_console.startsWith('undefined')) v_console = v_console.substring(9)
+
+if(typeof v_stdout == 'array') {
+v_stdout = v_stdout.filter(Boolean);
+}
+ return {
+     consoleOutput: v_console,
+     commandOutput: v_stdout
+ }
+ 
+}//END of sandbox
+
+  
+function prune_log() {
+    const MAX_LINES = 1000;
+
+fs.readFile('autobabytermux_log.txt', 'utf8', (err, data) => {
+  if (err) throw err;
+
+  const lines = data.trim().split('\n');
+
+  if (lines.length > MAX_LINES) {
+    const newLines = lines.slice(lines.length - MAX_LINES).join('\n');
+    fs.writeFile('log.txt', newLines, (err) => {
+      if (err) throw err;
+      console.log('Log file trimmed to 1000 lines.');
+    });
+  }
+});
+}  
 
 
 //assign console colors to
