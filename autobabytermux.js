@@ -1,7 +1,4 @@
-
-
-
-var YOUR_API_KEY = 'you know the one'
+var YOUR_API_KEY = 'set me please';
 
 // How many times can chain-of-thought
 // iterate autonomously? 
@@ -25,8 +22,9 @@ Observation: I'm being asked to do math.
 Thought: I can use the REPL to answer this.
 Action: REPL[function calculateArea(radius) { return Math.PI * radius * radius; } calculateArea(5);]
 Result: 
-Command Output: 78.53981633974483
-Console Output: N/A
+stdout: 78.53981633974483
+stderr: N/A
+console.log: N/A
 Finish: The function to calculate the area of a circle with a given radius is: \`function calculateArea(radius) { return Math.PI * radius * radius; }; calculateArea(5);\`
 Question: Does Margaret Thatcher really weigh less than two hamhocks? 
 Thought: I need to find out Margaret Thatcher's weight and the weight of two hamhocks.
@@ -38,8 +36,9 @@ Observation: Hamhocks weigh around 10 pounds.
 Thought: I can calculate now.
 Action: REPL[const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; console.log(isLighter);]
 Result: 
-Command Output: N/A
-Console Output: false
+stdout: N/A
+stderr: N/A
+console.log: false
 Observation: console.log(isLighter) prints false, which means Margaret Thatcher weighs more than two hamhocks.
 Finish: The comparison between Margaret Thatcher's weight and two hamhocks shows that she weighs more: \`const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; isLighter;\`
 Question: `
@@ -52,10 +51,11 @@ const vm = require('vm');
 // `tail -f autobabytermux_log.txt` for 
 // a slightly more verbose
 // look at reasoning / repl vm noise
-prune_log() //prunes to < 1K lines.
+var logfile = 'autobabytermux_log.txt'
+prune_log(logfile) //prunes to < 1K lines.
 function flog(...args) {
   const str = args.join(' ')+'\n';
-  fs.appendFileSync('autobabytermux_log.txt', str);
+  fs.appendFileSync(logfile, str);
 }
 
 
@@ -193,7 +193,7 @@ function chatloop() {
         let responseObj;
         
       //troubleshoot shortcut [remove me]    
-      if(input.length == 3) { input = '[p] create script that prints 20 odd numbers ,and test it in repl.' }
+      if(input.length == 3) { input = '[p] use repl to test simple reading and writing of one file: data.txt.' }
       
       //remove '[p]'
       newprompt = pp1 + input.trim().slice(3)+"\n";
@@ -203,14 +203,14 @@ function chatloop() {
       while (!stop && !isFinished && count < total_allowed_loops) { // 'Finish' element exits us. 
         
         response="";
-        flog('\n--------['+count+'] prompt (trimmed) is:\n'+input+output+'\n[/end prompt '+count+']----------\n')
-        flog('['+count+'] calling api...')
+        flog('\n--------['+count+'] visible prompt/conversation history (preprompt not shown) is:\n'+input+output+'\n[/end prompt '+count+']----------\n')
+        flog('['+count+'] iteration begin: calling api... 0_0')
         
         //the actual get
         response = await generateOutput(newprompt);
         
         
-         flog('-------------response before parsing:--------\n'+response+'\n-------------\n')
+         flog('--------response BEFORE parsing: (usually contains hallucinated results/finish statements etc.)--------\n\n'+response+'\n\n------end of response PRIOR to parsing.-------\n')
          
         //send to parser
         let responseObj = convertToObj(response)
@@ -248,10 +248,12 @@ function chatloop() {
               
                   let evald = sandbox(action.actionArgs)
                   
-                  flog('\n----sandboxed VM Output:\n',evald,'\n--- END VM-----\n')
+                  flog('\n----sandboxed VM Output:\n',JSON.stringify(evald),'\n--- END VM-----\n')
                   
                   output+='\nAction: REPL['+action.actionArgs+']'
-                  let resultString = '\nResult:\nCommand Output: ' + (evald.commandOutput || 'N/A') + '\nConsole Output: ' + (evald.consoleOutput || 'N/A')+'\n';
+                  let resultString = '\nResult:\nstdout: ' + (evald.stdout || 'N/A') +
+                  '\nstderr: ' + (evald.stderr || 'N/A') +
+                  '\nconsole.log: ' + (evald.v_console || 'N/A')+'\n';
 
                   output+=resultString
                   
@@ -303,31 +305,46 @@ loadModules().catch(error => {
 });
 
 
-
-
-
-//sandhox eval(). prevents fs writes ONLY.
-//everything else open.
-
-
-var commandOutput= [];
-
-
-
+//sandhox eval(). anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
+var stdout= [];
+//var fs = require('fs')
+//var vm = require('vm')
 function sandbox(code) {
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
-const disallowedFunctions = ['fs']
-
     const sandbox = {
     ...global,
-    
+    v_stdout: "",
+    v_stderr: "",
+    v_console: "",
     console: { 
     log: (...args) => { 
-      sandbox.consoleOutput += args.join(' ') + '\n'; 
+      sandbox.v_console += args.join(' ') + '\n'; 
     } }, 
-    
-    require: require,
+    process: {
+    stdout: {
+      write: (chunk, encoding, callback) => {
+        sandbox.v_stdout += chunk.toString();
+        if (callback) {
+          callback();
+        }
+      }
+    },
+    stderr: {
+      write: (chunk, encoding, callback) => {
+        sandbox.v_stderr += chunk.toString();
+        if (callback) {
+          callback();
+        }
+      }
+    }
+  },
+    require: function(moduleName){
+    if (!allowedFunctions.includes(moduleName)) {
+      throw new Error(`Module "${moduleName}" is not allowed in this sandbox.`);
+    }
+    return require(moduleName);
+  },
     module: module,
     exports: typeof exports !== 'undefined' ? exports : {},
     __dirname: typeof __dirname !== 'undefined' ? __dirname : "",
@@ -337,44 +354,36 @@ const disallowedFunctions = ['fs']
   for (const func of allowedFunctions) {
      sandbox[func] = global[func];
   }
+};
 
- for (const func of disallowedFunctions) {
-  const parts = func.split('.');
-  const parentObj = parts.slice(0, parts.length - 1).reduce((obj, key) => obj && obj[key], sandbox);
-
-  if (!parentObj) {
-    continue; // skip this function if the parent object is not defined
-  }
-  
-  
-  const lastKey = parts[parts.length - 1];
-  parentObj[lastKey] = () => {
-    console.log('1. Sandbox Error: Agent requested',func,'which is currently not permitted.')
-    return(`You are in a sandbox that limits fs writes. Function "${func}" is not allowed.`);
-  };
-}
-
-
-//catch vm throws
+ 
+ 
+//catch vm throws INSIDE vm so LLM can see them.
+//the 0. & 1. prefix is to help see where things were thrown.
 try {
-// stdout --> sandbox.commandOutput
-code = `commandOutput = (function() {
-  ${code}
-})();`;
+code = `
+try {
+    ${code}
+} catch (e)
+ { console.log('0. Sandbox Error:', e);
+ }
+`;
 
 // Execute the code in the vm context
 vm.runInContext(code, vm.createContext(sandbox));
 
 } catch (error) {
-    console.log('Sandbox Error: Caught: ',error)
-    if(typeof consoleOutput == 'undefined')   consoleOutput = 'NA'
-    return { commandOutput: error.toString().slice(0, 50) + '[...]', consoleOutput };
+    console.log('1. Sandbox Error: Caught: ',error)
+    if(typeof v_console == 'undefined')   v_console = 'NA'
+    return { v_stdout: error.toString().slice(0, 50) + '[...]', v_console };
   }
- 
+
+
 
 //slow that roll
-v_console = sandbox.consoleOutput || 'NA'
-v_stdout = sandbox.commandOutput || 'NA'
+v_console = sandbox.v_console || 'NA'
+v_stdout = sandbox.v_stdout || 'NA'
+v_stderr = sandbox.v_stderr || 'NA'
 
 //why does console response always start with 'undefined'? dont care moving on
 if(typeof v_console == 'string' && v_console.startsWith('undefined')) v_console = v_console.substring(9)
@@ -383,24 +392,29 @@ if(typeof v_stdout == 'array') {
 v_stdout = v_stdout.filter(Boolean);
 }
  return {
-     consoleOutput: v_console,
-     commandOutput: v_stdout
+     v_console: v_console,
+     stdout: v_stdout,
+     stderr: v_stderr
  }
  
 }//END of sandbox context
 
   
-function prune_log() {
+function prune_log(logfile) {
     const MAX_LINES = 1000;
 
-fs.readFile('autobabytermux_log.txt', 'utf8', (err, data) => {
+if (!fs.existsSync(logfile)) {
+  fs.writeFileSync(logfile, '');
+}
+
+fs.readFile(logfile, 'utf8', (err, data) => {
   if (err) throw err;
 
   const lines = data.trim().split('\n');
 
   if (lines.length > MAX_LINES) {
     const newLines = lines.slice(lines.length - MAX_LINES).join('\n');
-    fs.writeFile('log.txt', newLines, (err) => {
+    fs.writeFile(logfile, newLines, (err) => {
       if (err) throw err;
       console.log('Log file trimmed to 1000 lines.');
     });
