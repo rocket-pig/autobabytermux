@@ -52,4 +52,4 @@ vm instance directly. No created 'files' persist (they are stored in a js obj an
 ### Contributing
 
 If you want to contribute, pull requests or wearing pants not required. 
-You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to simultaneously never take this seriously, and see it thru. This is how beauty is made. Join in - don't be skurred - we need your trippy (or not) input.
+You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to simultaneously never take this seriously, and see it thru. This is how beauty is made. Join in plz! - we would love your trippy (or not) input.
