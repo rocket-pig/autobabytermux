@@ -17,11 +17,13 @@ In GPT's words:
 
 ### Usage:
 
-Have an OpenAI key ready, stick it on first line of script. Run 
-
 ```git clone https://github.com/rocket-pig/autobabytermux; cd autobabytermux```
 
-```npm install langchain openai```. Then, run 
+ Run 
+
+```npm install langchain openai```
+
+Have an OpenAI key ready, stick it on first line of script.  Then, run
 
 ```node autobabytermux.js``` 
 
