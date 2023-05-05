@@ -19,6 +19,8 @@ In GPT's words:
 
 Have an OpenAI key ready, stick it on first line of script. Run 
 
+```git clone https://github.com/rocket-pig/autobabytermux; cd autobabytermux```
+
 ```npm install langchain openai```. Then, run 
 
 ```node autobabytermux.js``` 
