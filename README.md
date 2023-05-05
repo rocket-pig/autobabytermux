@@ -48,4 +48,4 @@ vm instance directly.
 ### Contributing
 
 If you want to contribute, pull requests or wearing pants not required. 
-You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to bit nevr take this seriously while simultaneously seeing it thru. This is how beauty is made. Join in don't be skurred we need your trippy (or not) input.
+You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to simultaneously never take this seriously, and see it thru. This is how beauty is made. Join in - don't be skurred - we need your trippy (or not) input.
