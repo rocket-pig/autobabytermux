@@ -26,6 +26,8 @@ More settings at the top of the file as well for controlling output verbosity, A
 I'd call this '1.0' if that were my thing. w00t
 
 
+_May 3 2023_: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesystem' that's saved to fakefs.txt and restored each time.  The sandbox otherwise prevents filesystem writes *even to the sandbox* (using normal methods.) So you can let it do it's thing without worrying about it trashing your drive, AND be able to run commands that save/restore states/data.
+
 
 ### Usage:
 
@@ -41,7 +43,7 @@ Have an OpenAI key ready, stick it on first line of script.  Then, run
 
 and the interactive CLI starts. You can also pass a question in on the command line.
 The vm instance persists until the script stops.  The Agent has a fake, single-folder 'filesystem' that works just as it would expect, (fs.readFile, fs.writeFile). _Edit: removed the [s] hook but it'll go back in eventually._   ~~The user can press [s] to access the 
-vm instance directly.~~ No created 'files' persist (they are stored in a js obj and tossed when the vm ends).
+vm instance directly.~~ 
 
 ...Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
