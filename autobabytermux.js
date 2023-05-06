@@ -1,10 +1,31 @@
 var YOUR_API_KEY = 'set me please';
 
-// How many times can chain-of-thought
-// iterate autonomously? 
-const total_allowed_loops = 10;
 
-var pp1= `
+
+//Show 'Task:' sub-prompts in output. 
+DISPLAY_TASK_PROMPTS = false;
+
+//Show unfiltered responses from API in console? Uglier, but needed for debugging.
+DISPLAY_UNFILTERED = false;
+
+//Max allowed requests to the API per Question.  This includes ALL prompts including retries. 
+TOTAL_ALLOWED_REQS = 30;
+
+//Max allowed response tokens( token = 'half a word' they say.)  Getting away with smaller responses will make it cheaper to use, but too small and the outputs will be broken
+MAX_TOKENS = 500;
+
+//If LLM doesnt follow input request, how many attempts at re-prompting PER STEP do we try before giving up? Note that retries count toward global TOTAL_ALLOWED_REQS.
+RETRIES_COUNT = 3;
+
+//end of settings area.
+
+
+const fs = require('fs');
+const vm = require('vm');
+const readline = require('readline');
+
+
+var global_history = `
 Available plugins:
 Google Search:
 Result = Search[phrase]
@@ -31,24 +52,7 @@ Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
 Observation: This completes what I was asked to do.
 Observation: I could have been faster by trying the simpler way first. I will be faster next time.
 Finish: I have printed the requested file, stats.html, to the console.
-Question: `
-
-
-
-const fs = require('fs');
-const vm = require('vm');
-
-
-// `tail -f autobabytermux_log.txt` for 
-// a slightly more verbose
-// look at reasoning / repl vm noise
-var logfile = 'autobabytermux_log.txt'
-prune_log(logfile) //prunes to < 1K lines.
-function flog(...args) {
-  const str = args.join(' ')+'\n';
-  fs.appendFileSync(logfile, str);
-}
-
+Question: `;
 
 
 //begin loadModules context
@@ -58,348 +62,236 @@ async function loadModules() {
   const { ChatOpenAI } = openaiModule;
   const { HumanChatMessage, SystemChatMessage } = schemaModule;
   const chat = new ChatOpenAI({ openAIApiKey: YOUR_API_KEY, temperature: 0.7, timeout: 50000 });
-  
-
 
 
 async function generateOutput(message) {
   let response = await chat.call([
-    new HumanChatMessage(message, {max_tokens: 500})
+    new HumanChatMessage(message, {max_tokens: MAX_TOKENS})
   ]); 
+    //this method decided to only sometimes return an obj with a .text atribute, and wen it feels like it, just returns a han solo string with no JSON at all. So, :
     if (typeof response === 'object') {
-        flog('response is: an obj')
-      response = response.text;
+       response = response.text.trim() || response.error.trim();
     } else {
-        flog('response is: a str')
-      response = response;
+       response = response.trim();
     }
     return response;
 }
 
 
-//uncomment for a lot of debug noise in CLI.
-function vlog(...args) {
-    //youll wish you hadnt:
-    //console.log(...args);
+///....////
+
+
+//keep generateOutput clean: wrapper with added
+//logging/parsing/history prepending/retry/counting/etc.
+async function apiReq(message,prefix) {
+  //if message begins with 'Task:', post to console:
+  if(message.startsWith('Task:') && DISPLAY_TASK_PROMPTS) {
+        console.log(C_White,message)
 }
-
-
-
- //to summarize it takes the garble that LLM returns, strips it of newlines and then splits it by the 5 possible prefixes into a obj/dict with keys=prefixes and values=whatever text came between that prefix and the next, OR the end of the input.
- 
- function convertToObj(text) {
-  // Replace all newlines with spaces
-  const cleanedText = text.replace(/\n/g, ' ');
-  
-  // Split the text into segments based on the five potential prefixes
-  const segments = cleanedText.split(/(Action:|Result:|Thought:|Question:|Observation:|Finish:)/g).filter(segment => segment.length > 0);
-  
-  // Initialize an object to store the parsed data
-  const parsedData = {
-    Action: '',
-    Result: '',
-    Thought: '',
-    Question: '',
-    Observation: '',
-    Finish: ''
-  };
-  
-// Iterate over the segments and assign them to the appropriate key in the parsed data object
-let currentKey = null;
-for (let i = 0; i < segments.length; i++) {
-  const segment = segments[i];
-  if (['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:','Finish:'].includes(segment)) {
-    // This segment is a prefix; update the current key
-    currentKey = segment.replace(':', '');
-  } else if (typeof segment !== 'undefined') {
-    // This segment is content; assign it to the current key
-    if (parsedData[currentKey] === '') {
-      parsedData[currentKey] = segment.trim();
-    }
-    let nextIndex = i + 1;
-    while (nextIndex < segments.length && ['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:','Finish:'].indexOf(segments[nextIndex]) === -1) {
-      nextIndex++;
-    }
-    i = nextIndex - 1;
+  let prompt = global_history + '\n' + message;
+  let response;
+  //manage retries
+  for (let i = 0; i < RETRIES_COUNT && req_count < TOTAL_ALLOWED_REQS; i++) {
+    req_count+=1;
+    response = await generateOutput(prompt);
+    if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+'] END Unfilitered Output -----------\n');
+    const validatedInput = inputValidator(response, prefix);
+    if (validatedInput !== null) {
+        console.log(C_Yellow,'[ '+req_count+' ] '+prefix+':')
+        console.log(C_Green,validatedInput)
+        global_history+='\n'+validatedInput
+      return validatedInput;
+    } else { console.log(C_BrightBlack,'[ '+req_count+' ] Response Rejected.') } 
   }
+  return null;
 }
-  
-  // Trim any trailing spaces from the parsed data values
-  for (const key in parsedData) {
-    parsedData[key] = parsedData[key].trim();
+
+
+//response validator.
+function inputValidator(str, prefix) {
+  //handle YesNo binary
+  if(prefix == 'YesNo') {
+    const yesNoRegex = /^(yes|no)\.?$/i;
+  if (yesNoRegex.test(str)) {
+    return str.toLowerCase();
   }
-
-
-
-///  
-let obj = parsedData
-    
-flog('\n---new parser object:------------\n',JSON.stringify(obj),'\n--------end new parser object------------\n')
-
-
-if ('Action' in obj) {
-        try {
-            //get Plugin name
-            const argsn = /^(.*?)\[/;
-            const m2 = argsn.exec(obj.Action);
-            const actionName = m2[1];
-            //get Plugin input str. regex abs refuses to cooperate, so we found our own way to get first/last bracket location.
-            const lastBracketIndex = obj.Action.lastIndexOf("]");
-            const firstBracketIndex = obj.Action.indexOf("[");
-            const actionArgs = obj.Action.substring(firstBracketIndex + 1, lastBracketIndex);
-            //save to obj
-            obj.Action = { actionName, actionArgs }
-            
-            flog('Parser Debug: obj.Action is:',JSON.stringify(obj.Action))
-            
-            //if legit action statement, del everything else. we dont need to 'hear' hallucinated results.
-            if(actionName.toLowerCase() == 'repl' || actionName.toLowerCase() == 'search') {
-                for (let key in obj) {
-                     if (key !== 'Action') {
-                    delete obj[key];
-                    }
-                    }
-
-                }
-        } catch(e) {
-            flog('Caught: malformed Action statement, skipping:',e)
-            }
-}
-
-
-for (let key in obj) { if (!obj[key]) { delete obj[key]; }} //delete cruft
-
-
-if ('Finish' in obj) {
-        if (!obj.Action && !obj.Result && !obj.Thought && !obj.Observation && hasHad.Action) { // Only assign Finish if solo, AND if Action has been taken (toggled in 'hasHad.Action')
-            //do nothing, else:
-        } else {
-          delete obj.Finish
-          flog('(Deleted Finish as result was invented - Result not yet provided.)');
+  return null;
+  }
+  const prefixRegex = new RegExp(`^${prefix}:`, 'i');
+  if (prefixRegex.test(str)) {
+    //remove trailing hallucinations:
+    const prefixes = ['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:', 'Finish:'];
+    let splitIndex = str.length;
+    for (let i = 0; i < prefixes.length; i++) {
+        const prefix = prefixes[i];
+        const index = str.indexOf(`\n${prefix}`);
+        if (index !== -1 && index < splitIndex) {
+            splitIndex = index;
         }
     }
-
-
-flog('\n---parser obj AFTER action parse:------------\n',JSON.stringify(obj),'\n--------end action parsing------------\n')
-
-
-
-return obj;
+    str = str.substring(0, splitIndex);
+    str = str.replace(prefixRegex,'')
+    return str;
+  }
+  return null;
 }
 
 
-
-//globals because scope inside multinested 'while'...its too miserable.
-hasHad = {} // 'hasHad.Action' etc.
-var isFinished = false;
-var count =0;
-var response = ""; var output = "";
-var newprompt;
-var preprompt = pp1;
-
-
-//new prompt loop. directly request a specific
-//reaction to previous prompt.
-var currentPrefix = 'Question';
-async function generatePrompt(previousPrefix) {
-  const prefixes = ['Question','Observation', 'Thought', 'Action', 'Finish'];
-  const currentIndex = prefixes.indexOf(previousPrefix);
-  
-  
-//move the global forward each time thru
-  currentPrefix = (currentIndex + 1 < prefixes.length) ? prefixes[currentIndex + 1] : 'Question';
-  
-  let prompt;
-
-  if (previousPrefix === 'Action' && hasHad.Action) {
-      let tmp = `\nTask: Respond with Yes or No. Has the given Question been answered and the problem solved?: `
-    output+=tmp
-    prompt = await generateOutput(output+tmp);
-    output+=prompt+'\n'
-    console.log(C_BrightBlack,tmp);console.log(C_Green,': '+prompt);
-
-    if (prompt.toLowerCase().startsWith('yes')) {
-      currentPrefix = 'Finish';
-      prompt =`\nTask: Create a Finish statement by fully answering the question, including all relevant info from the actions above.`;
-    } else if (prompt.toLowerCase().startsWith('no') ) {
-        currentPrefix = 'Thought'
-      prompt = `\nTask: Create a Thought statement informed by 'Result' information above. What other way could you approach solving this problem / answering this question?`;
-    }
-  }
-  if(previousPrefix === 'Action' && !hasHad.Action || previousPrefix === 'Thought')
- {
-      prompt = `\nTask: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.`;
-} else {
-      
-    prompt = `Task: Create a one-line ${currentPrefix} statement informed by the ${previousPrefix} statement above. Follow the style shown.`;
-  }
-return prompt;
-}
-
-
-
-
-//8// chat on a loop until ctrl-c //8//
-function chatloop() {
-    flog('length:',pp1.length)
-    const readline = require('readline');
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
+/////
+async function action_REPL(command) {
+    console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n');
     
-    console.log("WELCOME! Usage: Preface prompt with [p] to use chain-of-thought preprompt. Otherwise no preprompt will be used.")
+      let evald = await sandbox_run(command);
+      
+      global_history+='\nAction: REPL['+command+']'
+      let resultString = '\nResult: stdout: ' + (evald.stdout || 'N/A') +
+      ' stderr: ' + (evald.stderr || 'N/A') +
+      ' console.log: ' + (evald.v_console || 'N/A')+'\n';
     
-    rl.prompt()
-    
-    rl.on('line', async (input) => {
-    //new: interact directly with the sandbox
-    //by prefacing with [s]:
-    if(input.startsWith('[s]')) {
-        //remove '[s]'
-      let temp = input.trim().slice(3).trim();
-      //console.log('got temp:',temp)
-        let response = await sandbox_run(temp)
-        console.log(response)
-    };
-        
-        
-    if(input.startsWith('[p]')) {
-        let responseObj;
-        virtualFs.init();
-        flog('virtualFs:',JSON.stringify(virtualFs),'\n\n\n\n\n')
-      //troubleshoot shortcut [remove me]    
-      if(input.length == 3) { input = '[p] Read journal.txt. Summarize what youve read. Is it factual? Prove it true or false using your own methods. Then, based on what youve learned, APPEND a new entry to your journal.txt with current time and date' }
+      global_history+=resultString
       
-      /*"[p] create a script you can run via import that simply reads a file in the current directory and prints it to console.log. save this at read.js and test it on itself." }
-      */
-      
-      //remove '[p]'
-      newprompt = pp1 + input.trim().slice(3).trim()+"\n";
-      //console.log('prompt is:',newprompt)
-      
-/* /\/\/\/\ while loop /\/\/\/\/ */
-      while (!isFinished && count < total_allowed_loops) { // 'Finish' element exits us. 
-        
-        response="";
-        flog('\n--------['+count+'] visible prompt/conversation history (preprompt not shown) is:\n'+input+output+'\n[/end prompt '+count+']----------\n')
-        flog('['+count+'] iteration begin: calling api... 0_0')
-        
-        
-        //new prompt routine? this used to just be the one line at the end.
-
-        
-        let sequentialprompt = await generatePrompt(currentPrefix)
-        
-        console.log('\n',sequentialprompt,'\n')
-        
-        //the actual get
-        response = await generateOutput(newprompt+sequentialprompt);
-        
-        // end new prompt routine.
-        
-         flog('--------response BEFORE parsing: (usually contains hallucinated results/finish statements etc.)--------\n\n'+response+'\n\n------end of response PRIOR to parsing.-------\n')
-         
-        //send to parser
-        let responseObj = convertToObj(response)
-        
-          //if Finish made it thru convertToObj parser, shows over:
-          if(responseObj && 'Finish' in responseObj && hasHad.Action) {
-              console.log(C_Green,'Finish: '+
-                responseObj.Finish);
-              isFinished = true; // set flag to exit loop
-              break;
-            }
+      console.log(C_Blue,'Plugin: REPL[ '+command+' ]:\n')
+      console.log(C_Blue,'>>>>'+resultString+'>>>>');
+        console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
             
-          //otherwise, loops not over:
-          if('Observation' in responseObj) {
-              currentPrefix = 'Observation'
-              hasHad.Observation = true
-              output+='\nObservation: '+responseObj.Observation
-              console.log(C_BrightBlack,'Observation: '+responseObj.Observation);
-          }
-          else if('Thought' in responseObj && hasHad.Observation) {
-              currentPrefix = 'Thought'
-              hasHad.Thought = true
-              output+='\nThought: '+responseObj.Thought
-              console.log(C_BrightBlack,'Thought: '+responseObj.Thought);
-
-          }
-          
-          else if('Action' in responseObj && hasHad.Thought) {
-           let action = responseObj['Action']
-           if(typeof action == 'object' && action.actionName) {
-              action.actionName = action.actionName.toLowerCase();
-            //dont go further on invented plugin names:
-            if(action.actionName == 'repl' || action.actionName == 'search') {
-                //Refuse to accept Finish if the agent has never taken an Action. 
-                  hasHad.Action = true;
-                  
-              if(action.actionName == 'repl') {
-                  currentPrefix = 'Action'
-              console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n')
-              
-                  let evald = await sandbox_run(action.actionArgs)
-                  
-                  flog('\n----sandboxed VM Output:\n',JSON.stringify(evald),'\n--- END VM-----\n')
-                  
-                  output+='\nAction: REPL['+action.actionArgs+']'
-                  let resultString = '\nResult: stdout: ' + (evald.stdout || 'N/A') +
-                  ' stderr: ' + (evald.stderr || 'N/A') +
-                  ' console.log: ' + (evald.v_console || 'N/A')+'\n';
-
-                  output+=resultString
-                  
-                  console.log(C_Blue,'Plugin: REPL[ '+action.actionArgs+' ]:\n')
-                  console.log(C_Blue,'>>>>'+resultString+'>>>>');
-                    console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
-                        
-              }
-              //implement me
-              if(action.actionName == "search"){
-                  console.log("WARN: Search called, but search not implemented");
-                  output+='\nAction: Search['+action.actionArgs+']'
-                  output += 'Result: ' + '"Sorry, Search is offline."';
-              }
-            }
-            }
-          }
+}//end action_REPL
+    
+//to keep delegator readable
+function parseActionStatement(input) {
+    try {
+        //get Plugin name
+        const argsn = /^(.*?)\[/;
+        const m2 = argsn.exec(input);
+        const actionName = m2[1];
+        //get Plugin input str. regex abs refuses to cooperate, so we found our own way to get first/last bracket location.
+        const lastBracketIndex = input.lastIndexOf("]");
+        const firstBracketIndex = input.indexOf("[");
+        const actionArgs = input.substring(firstBracketIndex + 1, lastBracketIndex);
+        //save to obj
+        input = { actionName, actionArgs }
         
+        //console.log('Parser Debug: input is:',JSON.stringify(input))
+        
+        return input;
+        
+    } catch(e) {
+        //console.log('Caught: malformed Action statement, skipping:',e)
+        return null;
+        }
+}//end parseActionStatement
 
-         //build next pass
-        
-        //flog('back at PROMPT BUILDING, VAR output IS NOW:', output)
-        console.log('['+count+']')
-          newprompt = pp1+ input + output+'\n\n{';
-          count+=1
-      } //end while, and below, if '[p]'
-        
+
+
+var req_count = 1;
+async function delegator(question) {
+  let observation;
+  let thought;
+  let action; 
+  let result;
+  let unfinished = true;
+  let first_pass = true;
+  
+  while (unfinished && req_count < TOTAL_ALLOWED_REQS) {
+    if (!observation) {
+      // Step 2: Retrieve an observation
+      let p;
+      let q = 'Question: '+question+'\n';
+      if(first_pass) p='Task: Create a one-line Observation statement informed by the Question above. Follow the style shown.'
+      if(!first_pass) p='Task: Create a one-line Observation statement informed by the history and Result above. What other way could you approach solving this problem / answering this question?'
+      observation = await apiReq(q+p,'Observation');
     }
-    if(!input.startsWith('[s]') && !input.startsWith('[p]')) {
-        //no preprompt, regular chat.
-        response = await generateOutput(input);  
-        console.log(C_Green,response);
+    
+    if (!thought) {
+      // Step 3: Generate a thought about how to take action
+      let p="Task: Create a Thought statement informed by your Observation - on how to solve the problem/question, by applying either 'Search' or 'REPL' plugins."
+      thought = await apiReq(p,'Thought');
+    }//end Thought
+    
+    if (!action) {
+      // Step 3: Generate action/plugin request.
+      let p="Task: Create a Action statement informed by your Thought. Syntax should be either 'REPL[ your js code here no line breaks ]' or 'Search[ your search phrase here ]' (without quotes)."
+      action = await apiReq(p,'Action');
+    }//end Action
+    
+    
+    if(observation && thought && action) {
+        
+    // Step 4: Take action using a plugin
+    let actionObj = parseActionStatement(action)
+    if(actionObj.actionName = 'repl') { 
+        result = await action_REPL(actionObj.actionArgs);
     }
-    //allow [p] to work again.
-    isFinished = false; output = ""; count=0; hasHad = {}; currentPrefix = 'Question'
-    });
-    //ctrl-c = bye
-    rl.on('SIGINT', () => {
+    // Step 5: Determine if the result answers the question
+    
+    let p=`Task: Respond with Yes or No. Has the given Question been answered and the problem solved?: `
+    let prompt = await apiReq(p,'YesNo');
+
+    if (prompt && prompt.toLowerCase().startsWith('yes')) {
+        
+      // Step 6a: Compose a finish statement
+      let p="Task: Provide a comprehensive Finish statement: your conclusion based on above history answering the Question in full."
+      action = await apiReq(p,'Finish');
+      unfinished = false;
+      req_count = 1;
+      break;
+    } else {
+      // Step 6b: Start Again at Thought by deleting Thought & Action & Obs
+      first_pass = false;
+      observation = null;
+      thought = null;
+      action = null;
+    }
+    
+    }//end last if clause.
+    
+  }//end while true
+  if(req_count >= TOTAL_ALLOWED_REQS) 
+  {
+      console.log(C_Red,'Error: Exceeded API request limit. TOTAL_ALLOWED_REQS = '+TOTAL_ALLOWED_REQS+'\n')
+      return 1;
+  }
+}//end function
+
+
+
+//run!
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+async function run() {
+  let inputString = process.argv[2];
+  inputString = inputString.slice(1, -1);
+  if (inputString) {
+    await delegator(inputString);
+  } else {
+    while (true) {
+      inputString = await new Promise((resolve) => {
+        rl.question('Enter Question: ', (input) => {
+          resolve(input);
+        });
+      });
+      await delegator(inputString);
       rl.close();
-    });
-} 
-chatloop()
+    }
+  }
+}; run().catch(e=>console.error(e));
 
-
-
-
-}//END
+}//END loadModules context.
 loadModules().catch(error => {
   console.error(`Failed to load modules: ${error}`);
 });
 
 
 
+
+/////
+
+
+
+//// everything below is sandbox code:
 //fakefs area:
 //persist the fakefs? 
 function fakefs_do(mode, obj) {
@@ -562,28 +454,7 @@ return {
 }//END of sandbox context
 
 
-//keep logfile size in control.  
-function prune_log(logfile) {
-    const MAX_LINES = 1000;
 
-if (!fs.existsSync(logfile)) {
-  fs.writeFileSync(logfile, '');
-}
-
-fs.readFile(logfile, 'utf8', (err, data) => {
-  if (err) throw err;
-
-  const lines = data.trim().split('\n');
-
-  if (lines.length > MAX_LINES) {
-    const newLines = lines.slice(lines.length - MAX_LINES).join('\n');
-    fs.writeFile(logfile, newLines, (err) => {
-      if (err) throw err;
-      console.log('Log file trimmed to 1000 lines.');
-    });
-  }
-});
-}  
 
 
 //assign console colors to
@@ -614,3 +485,7 @@ function assignConsoleColors() {
   }
   return consoleColors;
 }; assignConsoleColors()
+
+
+
+
