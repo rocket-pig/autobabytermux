@@ -3,16 +3,16 @@ var YOUR_API_KEY = 'set me please';
 
 
 //Show 'Task:' sub-prompts in output. 
-DISPLAY_TASK_PROMPTS = false;
+DISPLAY_TASK_PROMPTS = true;
 
 //Show unfiltered responses from API in console? Uglier, but needed for debugging.
-DISPLAY_UNFILTERED = false;
+DISPLAY_UNFILTERED = true;
 
 //Max allowed requests to the API per Question.  This includes ALL prompts including retries. 
 TOTAL_ALLOWED_REQS = 30;
 
 //Max allowed response tokens( token = 'half a word' they say.)  Getting away with smaller responses will make it cheaper to use, but too small and the outputs will be broken
-MAX_TOKENS = 500;
+MAX_TOKENS = 200;
 
 //If LLM doesnt follow input request, how many attempts at re-prompting PER STEP do we try before giving up? Note that retries count toward global TOTAL_ALLOWED_REQS.
 RETRIES_COUNT = 3;
@@ -24,33 +24,31 @@ const fs = require('fs');
 const vm = require('vm');
 const readline = require('readline');
 
-
-var global_history = `
-Available plugins:
+/*
+Not yet Available plugins:
 Google Search:
 Result = Search[phrase]
+*/
+var global_history = `
+Available Plugins:
 Node.js REPL:
 Result = REPL[inputString]
-NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed.
+NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed. The global ALLOWED_FUNCTIONS array contains a list of what other modules are available in the sandbox.
 Each line begins with keyword to signify which. Input MUST be on a single line or will get truncated, especially when using plugins.
 [BEGIN]
 Question: Get local file stats.html, print to screen
 Observation: I need to read and extract data from a file.
 Thought: I can use Node.js to read the file and extract the data, then format it for printing.
-Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
 Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } ]
 Result: stdout: NA stderr: NA console.log: 0. Sandbox Error: Error: Use fs.readFile. fs.readFileSync not enabled in sandbox.
 Observation: The REPL is giving me an error because it doesn't allow the use of fs.readFileSync for security reasons.
 Thought: I can modify my code to use fs.readFile instead.
-Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
 Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } }); ]
 Result: stdout: NA stderr: NA console.log: NA
 Observation: Nothing printed out. I must keep trying until I succeed. I will try revising my code.
-Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
 Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; console.log(data)}); ]
 Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
-Observation: This completes what I was asked to do.
-Observation: I could have been faster by trying the simpler way first. I will be faster next time.
+Observation: The code did not error and output is as expected. This completes what I was asked to do.
 Finish: I have printed the requested file, stats.html, to the console.
 Question: `;
 
@@ -101,40 +99,45 @@ async function apiReq(message,prefix) {
         console.log(C_Green,validatedInput)
         global_history+='\n'+validatedInput
       return validatedInput;
-    } else { console.log(C_BrightBlack,'[ '+req_count+' ] Response Rejected.') } 
+    } else { 
+        console.log(C_BrightBlack,'[ '+req_count+' ] : [ '+prefix+' ] Response Rejected.') } 
   }
   return null;
 }
 
 
 //response validator.
-function inputValidator(str, prefix) {
-  //handle YesNo binary
-  if(prefix == 'YesNo') {
-    const yesNoRegex = /^(yes|no)\.?$/i;
-  if (yesNoRegex.test(str)) {
-    return str.toLowerCase();
-  }
-  return null;
-  }
-  const prefixRegex = new RegExp(`^${prefix}:`, 'i');
-  if (prefixRegex.test(str)) {
-    //remove trailing hallucinations:
-    const prefixes = ['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:', 'Finish:'];
-    let splitIndex = str.length;
-    for (let i = 0; i < prefixes.length; i++) {
-        const prefix = prefixes[i];
-        const index = str.indexOf(`\n${prefix}`);
-        if (index !== -1 && index < splitIndex) {
-            splitIndex = index;
-        }
+function inputValidator(input, prefix) {
+    if (prefix == 'YesNo') {
+    const yesNoRegex = /^(yes|no).*?$/i;
+    if (yesNoRegex.test(input)) {
+      return input.toLowerCase();
     }
-    str = str.substring(0, splitIndex);
-    str = str.replace(prefixRegex,'')
-    return str;
+    return null;
+  } else {
+  const prefixes = ['Action', 'Result', 'Thought', 'Question', 'Observation', 'Finish', 'Task'];
+  const prefixStr = `${prefix}:`;
+
+  // Check if the input starts with the prefix
+  if (!input.startsWith(prefixStr)) {
+    return null;
   }
-  return null;
-}
+
+  // Find the index of the next occurrence of a prefix
+  let index = input.length;
+  for (let i = 0; i < prefixes.length; i++) {
+    const prefix = prefixes[i];
+    const prefixStr = `${prefix}:`;
+    const prefixIndex = input.indexOf(prefixStr, prefixStr.length);
+    if (prefixIndex !== -1 && prefixIndex < index) {
+      index = prefixIndex;
+    }
+  }
+
+  // Extract the valid input and trim it
+  const result = input.slice(prefixStr.length, index).trim();
+  return result.length > 0 ? result : null;
+}};
 
 
 /////
@@ -145,14 +148,14 @@ async function action_REPL(command) {
       
       global_history+='\nAction: REPL['+command+']'
       let resultString = '\nResult: stdout: ' + (evald.stdout || 'N/A') +
-      ' stderr: ' + (evald.stderr || 'N/A') +
-      ' console.log: ' + (evald.v_console || 'N/A')+'\n';
+      '\nstderr: ' + (evald.stderr || 'N/A') +
+      '\nconsole.log: ' + (evald.v_console || 'N/A')+'\n';
     
       global_history+=resultString
       
       console.log(C_Blue,'Plugin: REPL[ '+command+' ]:\n')
       console.log(C_Blue,'>>>>'+resultString+'>>>>');
-        console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
+      console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
             
 }//end action_REPL
     
@@ -162,7 +165,7 @@ function parseActionStatement(input) {
         //get Plugin name
         const argsn = /^(.*?)\[/;
         const m2 = argsn.exec(input);
-        const actionName = m2[1];
+        const actionName = m2[1].trim().toLowerCase();
         //get Plugin input str. regex abs refuses to cooperate, so we found our own way to get first/last bracket location.
         const lastBracketIndex = input.lastIndexOf("]");
         const firstBracketIndex = input.indexOf("[");
@@ -196,20 +199,20 @@ async function delegator(question) {
       // Step 2: Retrieve an observation
       let p;
       let q = 'Question: '+question+'\n';
-      if(first_pass) p='Task: Create a one-line Observation statement informed by the Question above. Follow the style shown.'
-      if(!first_pass) p='Task: Create a one-line Observation statement informed by the history and Result above. What other way could you approach solving this problem / answering this question?'
+      if(first_pass) p='Task: Create a one-line "Observation: " statement informed by the Question above. Follow the style shown.'
+      if(!first_pass) p='Task: Create a one-line "Observation: " statement informed by the history and Result above. What other way could you approach solving this problem / answering this question?'
       observation = await apiReq(q+p,'Observation');
     }
     
     if (!thought) {
       // Step 3: Generate a thought about how to take action
-      let p="Task: Create a Thought statement informed by your Observation - on how to solve the problem/question, by applying either 'Search' or 'REPL' plugins."
+      let p='Task: Create a one-line "Thought: " statement informed by your Observation above: how will you solve the problem/question by applying the REPL plugin.'
       thought = await apiReq(p,'Thought');
     }//end Thought
     
     if (!action) {
       // Step 3: Generate action/plugin request.
-      let p="Task: Create a Action statement informed by your Thought. Syntax should be either 'REPL[ your js code here no line breaks ]' or 'Search[ your search phrase here ]' (without quotes)."
+      let p='Task: Now, create an "Action: " statement informed by your Thought statement above. Syntax: "Action: REPL[ your js code here no line breaks ]" (without quotes).'// OR 'Search[ your search phrase here ]' (without quotes)."
       action = await apiReq(p,'Action');
     }//end Action
     
@@ -218,18 +221,23 @@ async function delegator(question) {
         
     // Step 4: Take action using a plugin
     let actionObj = parseActionStatement(action)
-    if(actionObj.actionName = 'repl') { 
+    //console.log('\n--------ACTION OBJ:\n',actionObj,'\n----------END ACTION OBJ\n')
+    if(actionObj.actionName == 'repl') { 
         result = await action_REPL(actionObj.actionArgs);
     }
+    if(actionObj.actionName == 'search') { 
+        result = "'Error: Search Plugin deactivated.'"
+    }
+    
     // Step 5: Determine if the result answers the question
     
-    let p=`Task: Respond with Yes or No. Has the given Question been answered and the problem solved?: `
+    let p=`Task: Respond with Yes or No. Are all these things true? 1. Your code completed without error 2. Your code printed the expected output 3. You are now prepared to answer the question.  ALL THREE must be true for Yes.: `
     let prompt = await apiReq(p,'YesNo');
 
     if (prompt && prompt.toLowerCase().startsWith('yes')) {
         
       // Step 6a: Compose a finish statement
-      let p="Task: Provide a comprehensive Finish statement: your conclusion based on above history answering the Question in full."
+      let p='Task: Provide a comprehensive "Finish: " statement: your conclusion based on above history, answering the Question in full.'
       action = await apiReq(p,'Finish');
       unfinished = false;
       req_count = 1;
@@ -264,6 +272,7 @@ const rl = readline.createInterface({
 async function run() {
   let inputString = process.argv[2];
   inputString = inputString.slice(1, -1);
+  virtualFs.init();
   if (inputString) {
     await delegator(inputString);
   } else {
@@ -333,7 +342,7 @@ var virtualFs = {
 for (const method in fs) {
   if (method !== 'readFile' && method !== 'writeFile' && typeof fs[method] === 'function') {
     sandbox.fs[method] = function(...args) {
-      console.log('Error: ' + method + ' method is not available in sandbox. Available methods: [ fs.readFile, fs.writeFile ]');
+      console.log('Error: ' + method + ' method is not available in sandbox. Available methods: [ fs.readFile, fs.writeFile ]')
     }
   }
 };
@@ -347,8 +356,12 @@ for (const method in fs) {
 //sandbox config:
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
+    //allow AA to list whats allowed so we dont have to watch it try/fail 100 ways in the dark(hopefully)
+    const ALLOWED_FUNCTIONS = [...allowedFunctions];
+
     const sandbox = {
     ...global,
+    ALLOWED_FUNCTIONS,
     fs: {
     readFile: function(path, options, callback) {
       virtualFs.readFile(path, options, callback);
@@ -428,7 +441,7 @@ try {
 `;
 
 // Execute the code in the vm context
-vm.runInContext(code,vm_instance);
+let nerp = await vm.runInContext(code,vm_instance);
 
 } catch (error) {
     console.log('1. Sandbox Error: Caught: ',error)
