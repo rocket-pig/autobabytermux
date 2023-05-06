@@ -39,10 +39,9 @@ Have an OpenAI key ready, stick it on first line of script.  Then, run
 
 ```node autobabytermux.js``` 
 
-and the interactive CLI starts. The Welcome message describes that a prompt prefaced with [p] will start the chain-of-thought chain-of-events. Prefacing with [s] will pass your command directly into the vm. You can also just chat with chatGPT normally.
-
-The vm instance persists until the script stops.  The Agent has a fake, single-folder 'filesystem' that works just as it would expect, (fs.readFile, fs.writeFile).  The user can press [s] to access the 
-vm instance directly. No created 'files' persist (they are stored in a js obj and tossed when the vm ends).
+and the interactive CLI starts. You can also pass a question in on the command line.
+The vm instance persists until the script stops.  The Agent has a fake, single-folder 'filesystem' that works just as it would expect, (fs.readFile, fs.writeFile). _Edit: removed the [s] hook but it'll go back in eventually._   ~~The user can press [s] to access the 
+vm instance directly.~~ No created 'files' persist (they are stored in a js obj and tossed when the vm ends).
 
 ...Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
