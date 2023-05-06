@@ -4,44 +4,35 @@ var YOUR_API_KEY = 'set me please';
 // iterate autonomously? 
 const total_allowed_loops = 10;
 
-
-
-//training preprompt
-var pp1 = `
+var pp1= `
 Available plugins:
 Google Search:
 Result = Search[phrase]
-Node.js interpreter:
+Node.js REPL:
 Result = REPL[inputString]
-NOTE: This is the Node.js REPL, it is NOT a bash prompt.
-Rules: All responses follow the same flow: Observation, Thought, Action, (these three repeated if necessary), and finally Finish.
+NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed.
 Each line begins with keyword to signify which. Input MUST be on a single line or will get truncated, especially when using plugins.
 [BEGIN]
-Question: Write a function that calculates the area of a circle with radius 5 and output the result.
-Observation: I'm being asked to do math.
-Thought: I can use the REPL to answer this.
-Action: REPL[function calculateArea(radius) { return Math.PI * radius * radius; } calculateArea(5);]
-Result: 
-stdout: 78.53981633974483
-stderr: N/A
-console.log: N/A
-Finish: The function to calculate the area of a circle with a given radius is: \`function calculateArea(radius) { return Math.PI * radius * radius; }; calculateArea(5);\`
-Question: Does Margaret Thatcher really weigh less than two hamhocks? 
-Thought: I need to find out Margaret Thatcher's weight and the weight of two hamhocks.
-Action: Search[Margaret Thatcher weight]
-Result: Margaret Thatcher's weight was known to be around 130 pounds.
-Action: Search[weight of 1 hamhock]
-Result: average hamhock weight 10 lbs
-Observation: Hamhocks weigh around 10 pounds.
-Thought: I can calculate now.
-Action: REPL[const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; console.log(isLighter);]
-Result: 
-stdout: N/A
-stderr: N/A
-console.log: false
-Observation: console.log(isLighter) prints false, which means Margaret Thatcher weighs more than two hamhocks.
-Finish: The comparison between Margaret Thatcher's weight and two hamhocks shows that she weighs more: \`const hamhockWeight = 10; const totalHamhockWeight = hamhockWeight * 2; const isLighter = 130 < totalHamhockWeight; isLighter;\`
+Question: Get local file stats.html, print to screen
+Observation: I need to read and extract data from a file.
+Thought: I can use Node.js to read the file and extract the data, then format it for printing.
+Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
+Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } ]
+Result: stdout: NA stderr: NA console.log: 0. Sandbox Error: Error: Use fs.readFile. fs.readFileSync not enabled in sandbox.
+Observation: The REPL is giving me an error because it doesn't allow the use of fs.readFileSync for security reasons.
+Thought: I can modify my code to use fs.readFile instead.
+Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
+Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } }); ]
+Result: stdout: NA stderr: NA console.log: NA
+Observation: Nothing printed out. I must keep trying until I succeed. I will try revising my code.
+Task: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.
+Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; console.log(data)}); ]
+Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
+Observation: This completes what I was asked to do.
+Observation: I could have been faster by trying the simpler way first. I will be faster next time.
+Finish: I have printed the requested file, stats.html, to the console.
 Question: `
+
 
 
 const fs = require('fs');
@@ -94,85 +85,158 @@ function vlog(...args) {
 
 
 
-//the much improved input parser.
-//gets args to Plugins much, much better.
-function convertToObj(inputString) {
-    const obj = {};
-    const lines = inputString.split('\n');
-    
-    function findLine(lines, prefix) {
-    const line = lines.find(line => line.startsWith(prefix));
-    return line ? line.substring(prefix.length).trim() : null;
-    }
+ //to summarize it takes the garble that LLM returns, strips it of newlines and then splits it by the 5 possible prefixes into a obj/dict with keys=prefixes and values=whatever text came between that prefix and the next, OR the end of the input.
  
-    const observation = findLine(lines, 'Observation:');
-    if (observation) {
-        obj.Observation = observation;
+ function convertToObj(text) {
+  // Replace all newlines with spaces
+  const cleanedText = text.replace(/\n/g, ' ');
+  
+  // Split the text into segments based on the five potential prefixes
+  const segments = cleanedText.split(/(Action:|Result:|Thought:|Question:|Observation:|Finish:)/g).filter(segment => segment.length > 0);
+  
+  // Initialize an object to store the parsed data
+  const parsedData = {
+    Action: '',
+    Result: '',
+    Thought: '',
+    Question: '',
+    Observation: '',
+    Finish: ''
+  };
+  
+// Iterate over the segments and assign them to the appropriate key in the parsed data object
+let currentKey = null;
+for (let i = 0; i < segments.length; i++) {
+  const segment = segments[i];
+  if (['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:','Finish:'].includes(segment)) {
+    // This segment is a prefix; update the current key
+    currentKey = segment.replace(':', '');
+  } else if (typeof segment !== 'undefined') {
+    // This segment is content; assign it to the current key
+    if (parsedData[currentKey] === '') {
+      parsedData[currentKey] = segment.trim();
     }
-    
-    const thought = findLine(lines,'Thought:')
-    if (thought) {
-        obj.Thought = thought;
+    let nextIndex = i + 1;
+    while (nextIndex < segments.length && ['Action:', 'Result:', 'Thought:', 'Question:', 'Observation:','Finish:'].indexOf(segments[nextIndex]) === -1) {
+      nextIndex++;
     }
+    i = nextIndex - 1;
+  }
+}
+  
+  // Trim any trailing spaces from the parsed data values
+  for (const key in parsedData) {
+    parsedData[key] = parsedData[key].trim();
+  }
 
-    const action = findLine(lines,'Action:')
-    if (action) {
+
+
+///  
+let obj = parsedData
+    
+flog('\n---new parser object:------------\n',JSON.stringify(obj),'\n--------end new parser object------------\n')
+
+
+if ('Action' in obj) {
         try {
             //get Plugin name
             const argsn = /^(.*?)\[/;
-            const m2 = argsn.exec(action);
+            const m2 = argsn.exec(obj.Action);
             const actionName = m2[1];
             //get Plugin input str. regex abs refuses to cooperate, so we found our own way to get first/last bracket location.
-            const lastBracketIndex = action.lastIndexOf("]");
-            const firstBracketIndex = action.indexOf("[");
-            const actionArgs = action.substring(firstBracketIndex + 1, lastBracketIndex);
+            const lastBracketIndex = obj.Action.lastIndexOf("]");
+            const firstBracketIndex = obj.Action.indexOf("[");
+            const actionArgs = obj.Action.substring(firstBracketIndex + 1, lastBracketIndex);
             //save to obj
             obj.Action = { actionName, actionArgs }
+            
             flog('Parser Debug: obj.Action is:',JSON.stringify(obj.Action))
+            
+            //if legit action statement, del everything else. we dont need to 'hear' hallucinated results.
+            if(actionName.toLowerCase() == 'repl' || actionName.toLowerCase() == 'search') {
+                for (let key in obj) {
+                     if (key !== 'Action') {
+                    delete obj[key];
+                    }
+                    }
+
+                }
         } catch(e) {
             flog('Caught: malformed Action statement, skipping:',e)
-            //we need to return something still, else fake Finishes will sneak past.
-            obj.Action = {actionName: 'Error: Malformed plugin request.',actionArgs: ''}
-        }
+            }
 }
 
-    const finish = findLine(lines,'Finish:')
-    if (finish) {
-        if (!obj.Action && !obj.Result && !obj.Thought && !obj.Observation && hasActed) { // Only assign Finish if solo, AND if Action has been taken (toggled in 'hasActed')
-          obj.Finish = finish
+
+for (let key in obj) { if (!obj[key]) { delete obj[key]; }} //delete cruft
+
+
+if ('Finish' in obj) {
+        if (!obj.Action && !obj.Result && !obj.Thought && !obj.Observation && hasHad.Action) { // Only assign Finish if solo, AND if Action has been taken (toggled in 'hasHad.Action')
+            //do nothing, else:
         } else {
+          delete obj.Finish
           flog('(Deleted Finish as result was invented - Result not yet provided.)');
         }
     }
-    return obj;
-} //parser ends
+
+
+flog('\n---parser obj AFTER action parse:------------\n',JSON.stringify(obj),'\n--------end action parsing------------\n')
+
+
+
+return obj;
+}
 
 
 
 //globals because scope inside multinested 'while'...its too miserable.
+hasHad = {} // 'hasHad.Action' etc.
 var isFinished = false;
-var hasActed = false;
 var count =0;
 var response = ""; var output = "";
 var newprompt;
 var preprompt = pp1;
 
 
-//'Ctrl-C' first exits chain-of-thought,
-//2nd time exits CLI.
-let stop = false;
-process.on('SIGINT', () => {
-  if (stop) {
-    console.log('Bye! Exiting...');
-    process.exit();
-  } else {
-    console.log('Press Ctrl-C again to exit');
-    stop = true;
-    setTimeout(() => {
-      stop = false;
-    }, 3000); // reset stop flag after 3 seconds
+//new prompt loop. directly request a specific
+//reaction to previous prompt.
+var currentPrefix = 'Question';
+async function generatePrompt(previousPrefix) {
+  const prefixes = ['Question','Observation', 'Thought', 'Action', 'Finish'];
+  const currentIndex = prefixes.indexOf(previousPrefix);
+  
+  
+//move the global forward each time thru
+  currentPrefix = (currentIndex + 1 < prefixes.length) ? prefixes[currentIndex + 1] : 'Question';
+  
+  let prompt;
+
+  if (previousPrefix === 'Action' && hasHad.Action) {
+      let tmp = `\nTask: Respond with Yes or No. Has the given Question been answered and the problem solved?: `
+    output+=tmp
+    prompt = await generateOutput(output+tmp);
+    output+=prompt+'\n'
+    console.log(C_BrightBlack,tmp);console.log(C_Green,': '+prompt);
+
+    if (prompt.toLowerCase().startsWith('yes')) {
+      currentPrefix = 'Finish';
+      prompt =`\nTask: Create a Finish statement by fully answering the question, including all relevant info from the actions above.`;
+    } else if (prompt.toLowerCase().startsWith('no') ) {
+        currentPrefix = 'Thought'
+      prompt = `\nTask: Create a Thought statement informed by 'Result' information above. What other way could you approach solving this problem / answering this question?`;
+    }
   }
-});
+  if(previousPrefix === 'Action' && !hasHad.Action || previousPrefix === 'Thought')
+ {
+      prompt = `\nTask: Create a Action statement that utilizes a plugin (search,repl) in order to help answer the question.`;
+} else {
+      
+    prompt = `Task: Create a one-line ${currentPrefix} statement informed by the ${previousPrefix} statement above. Follow the style shown.`;
+  }
+return prompt;
+}
+
+
 
 
 //8// chat on a loop until ctrl-c //8//
@@ -194,32 +258,45 @@ function chatloop() {
     if(input.startsWith('[s]')) {
         //remove '[s]'
       let temp = input.trim().slice(3).trim();
-      console.log('got temp:',temp)
-        let blah = sandbox_run(temp)
-        console.log('after sandbox run:',blah )
+      //console.log('got temp:',temp)
+        let response = await sandbox_run(temp)
+        console.log(response)
     };
         
         
     if(input.startsWith('[p]')) {
         let responseObj;
-        
+        virtualFs.init();
+        flog('virtualFs:',JSON.stringify(virtualFs),'\n\n\n\n\n')
       //troubleshoot shortcut [remove me]    
-      if(input.length == 3) { input = '[p] use repl to test simple reading and writing of one file: data.txt.' }
+      if(input.length == 3) { input = '[p] Read journal.txt. Summarize what youve read. Is it factual? Prove it true or false using your own methods. Then, based on what youve learned, APPEND a new entry to your journal.txt with current time and date' }
+      
+      /*"[p] create a script you can run via import that simply reads a file in the current directory and prints it to console.log. save this at read.js and test it on itself." }
+      */
       
       //remove '[p]'
       newprompt = pp1 + input.trim().slice(3).trim()+"\n";
       //console.log('prompt is:',newprompt)
       
 /* /\/\/\/\ while loop /\/\/\/\/ */
-      while (!stop && !isFinished && count < total_allowed_loops) { // 'Finish' element exits us. 
+      while (!isFinished && count < total_allowed_loops) { // 'Finish' element exits us. 
         
         response="";
         flog('\n--------['+count+'] visible prompt/conversation history (preprompt not shown) is:\n'+input+output+'\n[/end prompt '+count+']----------\n')
         flog('['+count+'] iteration begin: calling api... 0_0')
         
-        //the actual get
-        response = await generateOutput(newprompt);
         
+        //new prompt routine? this used to just be the one line at the end.
+
+        
+        let sequentialprompt = await generatePrompt(currentPrefix)
+        
+        console.log('\n',sequentialprompt,'\n')
+        
+        //the actual get
+        response = await generateOutput(newprompt+sequentialprompt);
+        
+        // end new prompt routine.
         
          flog('--------response BEFORE parsing: (usually contains hallucinated results/finish statements etc.)--------\n\n'+response+'\n\n------end of response PRIOR to parsing.-------\n')
          
@@ -227,7 +304,7 @@ function chatloop() {
         let responseObj = convertToObj(response)
         
           //if Finish made it thru convertToObj parser, shows over:
-          if(responseObj && 'Finish' in responseObj) {
+          if(responseObj && 'Finish' in responseObj && hasHad.Action) {
               console.log(C_Green,'Finish: '+
                 responseObj.Finish);
               isFinished = true; // set flag to exit loop
@@ -236,35 +313,40 @@ function chatloop() {
             
           //otherwise, loops not over:
           if('Observation' in responseObj) {
+              currentPrefix = 'Observation'
+              hasHad.Observation = true
               output+='\nObservation: '+responseObj.Observation
               console.log(C_BrightBlack,'Observation: '+responseObj.Observation);
           }
-          if('Thought' in responseObj) {
+          else if('Thought' in responseObj && hasHad.Observation) {
+              currentPrefix = 'Thought'
+              hasHad.Thought = true
               output+='\nThought: '+responseObj.Thought
               console.log(C_BrightBlack,'Thought: '+responseObj.Thought);
 
           }
           
-          if('Action' in responseObj) {
+          else if('Action' in responseObj && hasHad.Thought) {
            let action = responseObj['Action']
            if(typeof action == 'object' && action.actionName) {
               action.actionName = action.actionName.toLowerCase();
             //dont go further on invented plugin names:
             if(action.actionName == 'repl' || action.actionName == 'search') {
                 //Refuse to accept Finish if the agent has never taken an Action. 
-                  hasActed = true;
-              
+                  hasHad.Action = true;
+                  
               if(action.actionName == 'repl') {
+                  currentPrefix = 'Action'
               console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n')
               
-                  let evald = sandbox_run(action.actionArgs)
+                  let evald = await sandbox_run(action.actionArgs)
                   
                   flog('\n----sandboxed VM Output:\n',JSON.stringify(evald),'\n--- END VM-----\n')
                   
                   output+='\nAction: REPL['+action.actionArgs+']'
-                  let resultString = '\nResult:\nstdout: ' + (evald.stdout || 'N/A') +
-                  '\nstderr: ' + (evald.stderr || 'N/A') +
-                  '\nconsole.log: ' + (evald.v_console || 'N/A')+'\n';
+                  let resultString = '\nResult: stdout: ' + (evald.stdout || 'N/A') +
+                  ' stderr: ' + (evald.stderr || 'N/A') +
+                  ' console.log: ' + (evald.v_console || 'N/A')+'\n';
 
                   output+=resultString
                   
@@ -299,7 +381,7 @@ function chatloop() {
         console.log(C_Green,response);
     }
     //allow [p] to work again.
-    isFinished = false; output = ""; count=0; failed_once_already = false;
+    isFinished = false; output = ""; count=0; hasHad = {}; currentPrefix = 'Question'
     });
     //ctrl-c = bye
     rl.on('SIGINT', () => {
@@ -318,44 +400,30 @@ loadModules().catch(error => {
 
 
 
+//fakefs area:
+//persist the fakefs? 
+function fakefs_do(mode, obj) {
+  if (mode === 'put') {
+    const content = JSON.stringify(obj);
+    fs.writeFileSync('fakefs.txt', content);
+  } else if (mode === 'get') {
+      try {
+    const content = fs.readFileSync('fakefs.txt', 'utf-8');
+    return JSON.parse(content);
+      } catch(e) { console.error("Could not load fakefs.txt, (returning empty object): ",e)
+        return {} }; 
+  } else {
+    throw new Error('Invalid mode: ' + mode);
+  }
+};
 
-
-//sandhox eval(). anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
-var stdout= [];
-//var fs = require('fs')
-//var vm = require('vm')
-
-
-
-//cheap virtual fs so LLM can have persistent
+//cheap virtual fs so Agent can have persistent
 //'files' in memory:
-// Define a virtual file system object with read/write methods
-
-const virtualFs = {
+var virtualFs = {
   files: {},
-readFileSync: function(path, options) {
-  return new Promise((resolve, reject) => {
-    virtualFs.readFile(path, options, (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(data);
-      }
-    });
-  });
-},
-writeFileSync: function(path, data, options) {
-  return new Promise((resolve, reject) => {
-    virtualFs.writeFile(path, data, options, (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-},
   readFile: function (path, options, callback) {
+    if(path.startsWith('./')) path = path.substring(2)
+    this.files = fakefs_do('get',this.files) //persist fakefs
     const file = this.files[path];
     if (!file) {
       return callback(new Error(`ENOENT: no such file or directory, open '${path}'`));
@@ -363,13 +431,28 @@ writeFileSync: function(path, data, options) {
     callback(null, options.encoding ? file.toString(options.encoding) : file);
   },
   writeFile: function (path, data, options, callback) {
+      if(path.startsWith('./')) path=path.substring(2)
     this.files[path] = options.encoding ? Buffer.from(data, options.encoding) : data;
+    fakefs_do('put',this.files) //persist fakefs. 
     callback();
+  },
+  init: function() {
+//attach error messages to every other fs method:
+for (const method in fs) {
+  if (method !== 'readFile' && method !== 'writeFile' && typeof fs[method] === 'function') {
+    sandbox.fs[method] = function(...args) {
+      console.log('Error: ' + method + ' method is not available in sandbox. Available methods: [ fs.readFile, fs.writeFile ]');
+    }
   }
 };
+}
+}; //end virtualFs
 
 
-//function sandbox(code) {
+
+//sandhox 'vm'. anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
+
+//sandbox config:
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
     const sandbox = {
@@ -431,12 +514,11 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
   }
 
 
-//global reusable
+//sandbox shared/reused instance
 var vm_instance = vm.createContext(sandbox)
 
 
-function sandbox_run(code){
-    
+async function sandbox_run(code){
 //reset output logs    
 sandbox.v_stdout="";
 sandbox.v_stderr="";
@@ -450,29 +532,25 @@ try {
     ${code}
 } catch (e)
  { console.log('0. Sandbox Error:', e);
- }
+ };
 `;
 
 // Execute the code in the vm context
-//vm.runInContext(code, vm.createContext(sandbox));
 vm.runInContext(code,vm_instance);
-
-
 
 } catch (error) {
     console.log('1. Sandbox Error: Caught: ',error)
-    if(typeof v_console == 'undefined')   v_console = 'NA'
-    return { v_stdout: error.toString().slice(0, 50) + '[...]', v_console };
+    if(typeof v_console == 'undefined') v_console = 'NA';
+    if(typeof v_stderr == 'undefined') v_stderr = 'NA';
+    return { v_stdout: error.toString().slice(0, 150) + '[...]', v_console, v_stderr };
   }
 
-
-
-//slow that roll
+//the way we pass results 'up'.
 v_console = sandbox.v_console || 'NA'
 v_stdout = sandbox.v_stdout || 'NA'
 v_stderr = sandbox.v_stderr || 'NA'
 
-//why does console response always start with 'undefined'? dont care moving on
+//why does console response often(perhaps always?) start with 'undefined'? dont care moving on
 if(typeof v_console == 'string' && v_console.startsWith('undefined')) v_console = v_console.substring(9)
 
 return {
@@ -483,7 +561,8 @@ return {
  
 }//END of sandbox context
 
-  
+
+//keep logfile size in control.  
 function prune_log(logfile) {
     const MAX_LINES = 1000;
 
@@ -535,4 +614,3 @@ function assignConsoleColors() {
   }
   return consoleColors;
 }; assignConsoleColors()
-
