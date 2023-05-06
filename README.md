@@ -67,7 +67,7 @@ After this, ```cat fakefs.txt``` returns
 ### Contributing
 
 If you want to contribute, pull requests or wearing pants not required. 
-You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to simultaneously never take this seriously, and see it thru. This is how beauty is made. Join in plz! - we would love your trippy (or not at all) input.
+You can even just yell at me in the Issues and link a gist, whatever works.  I in every sense intend to simultaneously never take this seriously, and see it thru. This is how beauty is made. I hope you join in! - would love your unique input.
 
 ### TODO:
 * Why are we using langchain to access openAI? Langchain itself is completely unused. Find a cheaper openAI module or just write a quick one.
