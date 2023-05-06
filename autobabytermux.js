@@ -304,10 +304,16 @@ loadModules().catch(error => {
 //fakefs area:
 //persist the fakefs? 
 function fakefs_do(mode, obj) {
-  if (mode === 'put') {
-    const content = JSON.stringify(obj);
-    fs.writeFileSync('fakefs.txt', content);
-  } else if (mode === 'get') {
+    if (mode === 'put') {
+        let data = {};
+        if (fs.existsSync('fakefs.txt')) {
+          const content = fs.readFileSync('fakefs.txt', 'utf8');
+          data = JSON.parse(content);
+        }
+        data = {...data, ...obj};
+        const content = JSON.stringify(data);
+        fs.writeFileSync('fakefs.txt', content);
+    } else if (mode === 'get') {
       try {
     const content = fs.readFileSync('fakefs.txt', 'utf-8');
     return JSON.parse(content);
