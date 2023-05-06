@@ -13,6 +13,18 @@ In GPT's words:
 >It is worth noting that autobabytermux is a massively micro version of similar projects that typically require advanced dependencies such as numpy and pandas. Because autobabytermux is designed to run within Termux on a phone, it is much more lightweight and accessible. 
 
 
+### Latest Updates:
+*May 6 2023*:
+The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
+
+The overall readability is also just incomparably superior to the previous code.  I had ironed out all the necessary parts but it needed this refactoring and cleanup something fierce.
+
+It can now be run with a question (in quotes) as the first arg on command line.
+
+More settings at the top of the file as well for controlling output verbosity, API request limits etc.
+
+I'd call this '1.0' if that were my thing. w00t
+
 
 
 ### Usage:
