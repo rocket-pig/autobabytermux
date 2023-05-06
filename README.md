@@ -50,7 +50,8 @@ vm instance directly.~~
 ### Latest:
 ![img](https://i.ibb.co/9bJtN7J/Screenshot-2023-05-06-12-23-24.png)
 
-
+After this, ```cat fakefs.txt``` returns
+> {"fibonacci_2023-05-06.txt":"Tutorial on printing the fibonacci sequence with Node.js:\n\nTo print the fibonacci sequence, first define a function that takes an integer n as input and returns the first n numbers of the sequence. Then, call the function with your desired n value and console.log the result. Here is an example implementation:\n\nfunction fibonacci(n) {\n  if (n <= 1) return [0, 1].slice(0, n + 1);\n  const sequence = fibonacci(n - 1);\n  sequence.push(sequence[sequence.length - 1] + sequence[sequence.length - 2]);\n  return sequence;\n}\n\nconsole.log(fibonacci(10));\n"}
 ### Older, but you get the idea:
 
 ![url](https://i.ibb.co/bvsL8vs/Screenshot-2023-05-03-22-51-35.png)
