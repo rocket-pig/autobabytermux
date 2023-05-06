@@ -30,12 +30,7 @@ Google Search:
 Result = Search[phrase]
 */
 var global_history = `
-Available Plugins:
-Node.js REPL:
-Result = REPL[inputString]
-NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed. The global ALLOWED_FUNCTIONS array contains a list of what other modules are available in the sandbox.
-Each line begins with keyword to signify which. Input MUST be on a single line or will get truncated, especially when using plugins.
-[BEGIN]
+[EXAMPLE]
 Question: Get local file stats.html, print to screen
 Observation: I need to read and extract data from a file.
 Thought: I can use Node.js to read the file and extract the data, then format it for printing.
@@ -50,30 +45,47 @@ Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, 
 Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
 Observation: The code did not error and output is as expected. This completes what I was asked to do.
 Finish: I have printed the requested file, stats.html, to the console.
+[/EXAMPLE]
+Available Plugins:
+Node.js REPL:
+Result = REPL[inputString]
+NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed. Use global ALLOWED_FUNCTIONS array to see what other modules are available in the sandbox.
+Each line begins with 'Prefix: ' to signify input type. Input MUST be on a single line or will get truncated, especially when using plugins.
+
+Emulating the example above, lets begin:
 Question: `;
 
 
-//begin loadModules context
 async function loadModules() {
-      const openaiModule = await import("langchain/chat_models/openai");
-  const schemaModule = await import("langchain/schema");
-  const { ChatOpenAI } = openaiModule;
-  const { HumanChatMessage, SystemChatMessage } = schemaModule;
-  const chat = new ChatOpenAI({ openAIApiKey: YOUR_API_KEY, temperature: 0.7, timeout: 50000 });
+  const openaiModule = await import("openai");
+  const { Configuration, OpenAIApi } = openaiModule;
+  const configuration = new Configuration({
+    apiKey: YOUR_API_KEY,
+  });
+  const openai = new OpenAIApi(configuration);
 
-
-async function generateOutput(message) {
-  let response = await chat.call([
-    new HumanChatMessage(message, {max_tokens: MAX_TOKENS})
-  ]); 
-    //this method decided to only sometimes return an obj with a .text atribute, and wen it feels like it, just returns a han solo string with no JSON at all. So, :
-    if (typeof response === 'object') {
-       response = response.text.trim() || response.error.trim();
-    } else {
-       response = response.trim();
+  async function generateOutput(message) {
+    const prompt = message.trim();
+    const response = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      
+    });
+    const { choices, error } = response.data;
+    if (error) {
+      throw new Error('---API Error:\n',error.message);
     }
-    return response;
-}
+    if (Array.isArray(choices)) {
+      return choices[0].message.content.trim();
+    } else {
+      return choices.trim();
+    }
+  }
+
+
+
+
+
 
 
 ///....////
@@ -231,7 +243,7 @@ async function delegator(question) {
     
     // Step 5: Determine if the result answers the question
     
-    let p=`Task: Respond with Yes or No. Are all these things true? 1. Your code completed without error 2. Your code printed the expected output 3. You are now prepared to answer the question.  ALL THREE must be true for Yes.: `
+    let p=`Task: Respond with Yes or No. Are all three statements true? 1.Your code completed without error. 2.Your code printed the expected output. 3.You have obtained the necessary information to fully answer the original Question, OR have fully completed the original task. ALL THREE must be true for Yes:`
     let prompt = await apiReq(p,'YesNo');
 
     if (prompt && prompt.toLowerCase().startsWith('yes')) {
