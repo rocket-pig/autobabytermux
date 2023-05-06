@@ -46,11 +46,12 @@ vm instance directly.~~ No created 'files' persist (they are stored in a js obj 
 ...Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
 ### Latest:
-
-![url](https://i.ibb.co/bvsL8vs/Screenshot-2023-05-03-22-51-35.png)
+![img](https://i.ibb.co/9bJtN7J/Screenshot-2023-05-06-12-23-24.png)
 
 
 ### Older, but you get the idea:
+
+![url](https://i.ibb.co/bvsL8vs/Screenshot-2023-05-03-22-51-35.png)
 
 ![pix](https://i.ibb.co/12SdWkF/Screenshot-2023-05-02-19-24-40.png)
 
