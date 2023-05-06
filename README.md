@@ -6,7 +6,7 @@ In GPT's words:
 
 >The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
 
->At its core, autobabytermux is an autonomous AI agent that can run entirely on your phone. It requires only two npm modules - langchain and openai - to function. 
+>At its core, autobabytermux is an autonomous AI agent that can run entirely on your phone. It requires only ONE npm module - openai - to function. 
 
 >The QOTAR (Question, Observation, Thought, Action, Result) chain-of-thought framework guides the reasoning process, allowing the agent to efficiently arrive at an answer to your question. 
 
@@ -15,7 +15,9 @@ In GPT's words:
 
 ### Latest Updates:
 *May 6 2023*:
-The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
+Removed useless langchain dependency. We were simply being lazy and using their openai interface. Now just uses openai official module.
+
+__Complete code rewrite__: The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
 
 The overall readability is also just incomparably superior to the previous code.  I had ironed out all the necessary parts but it needed this refactoring and cleanup something fierce.
 
@@ -35,7 +37,7 @@ _May 3 2023_: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesy
 
  Run 
 
-```npm install langchain openai```
+```npm install openai```
 
 Have an OpenAI key ready, stick it on first line of script.  Then, run
 
