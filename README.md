@@ -14,21 +14,24 @@ In GPT's words:
 
 
 ### Latest Updates:
-*May 6 2023*:
-Removed useless langchain dependency. We were simply being lazy and using their openai interface. Now just uses openai official module.
 
-__Complete code rewrite__: The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
+__May 7 2023__:
+* Found a stupid typo: stdout/stderr/log from vm works as it should have been all along now.
+* Added shortcut back that slides into a vm REPL shell. Changed it to '*s' (The [s] is not fun to type when you dont have your external keyboard)
+* A ton of little bugs (like not sending the prefix to the global_history) that while things were still working before, its even better/faster now.
+* __I tested removing the 2k char preprompt__ and preliminary tests show that the single-sentence subprompts __may be all thats needed_. If so that saves an absolute ton of API credits.  Ill make that the default after more testing.
+* process module is now correctly merged with stdout/stderr overrides so its otherwise functional
+* changed the write/read methods to what is actually happening underneath...its just less confusing.
+* ton of other tweaks and upgrades I cant recall now.
 
-The overall readability is also just incomparably superior to the previous code.  I had ironed out all the necessary parts but it needed this refactoring and cleanup something fierce.
+__May 6 2023__:
+* Removed useless langchain dependency. We were simply being lazy and using their openai interface. Now just uses openai official module.
+* _Complete code rewrite_: The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
+* The overall readability is also just incomparably superior to the previous code.  I had ironed out all the necessary parts but it needed this refactoring and cleanup something fierce.
+* It can now be run with a question (in quotes) as the first arg on command line.
+* More settings at the top of the file as well for controlling output verbosity, API request limits etc.
 
-It can now be run with a question (in quotes) as the first arg on command line.
-
-More settings at the top of the file as well for controlling output verbosity, API request limits etc.
-
-I'd call this '1.0' if that were my thing. w00t
-
-
-_May 3 2023_: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesystem' that's saved to fakefs.txt and restored each time.  The sandbox otherwise prevents filesystem writes *even to the sandbox* (using normal methods.) So you can let it do it's thing without worrying about it trashing your drive, AND be able to run commands that save/restore states/data.
+__May 3 2023__: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesystem' that's saved to fakefs.txt and restored each time.  The sandbox otherwise prevents filesystem writes *even to the sandbox* (using normal methods.) So you can let it do it's thing without worrying about it trashing your drive, AND be able to run commands that save/restore states/data.
 
 
 ### Usage:
