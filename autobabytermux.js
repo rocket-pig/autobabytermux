@@ -24,24 +24,21 @@ const fs = require('fs');
 const vm = require('vm');
 const readline = require('readline');
 
-/*
-Not yet Available plugins:
-Google Search:
-Result = Search[phrase]
-*/
-var global_history = `
-[EXAMPLE]
+// var global_history = `Question: ` 
+
+//testing without ANY preprompt and it also seems to work. Which saves 2k chars every request. You can change this to the one above to try it out yourself.
+var global_history = `[EXAMPLE]
 Question: Get local file stats.html, print to screen
 Observation: I need to read and extract data from a file.
 Thought: I can use Node.js to read the file and extract the data, then format it for printing.
-Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } ]
-Result: stdout: NA stderr: NA console.log: 0. Sandbox Error: Error: Use fs.readFile. fs.readFileSync not enabled in sandbox.
-Observation: The REPL is giving me an error because it doesn't allow the use of fs.readFileSync for security reasons.
-Thought: I can modify my code to use fs.readFile instead.
 Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } }); ]
-Result: stdout: NA stderr: NA console.log: NA
+Result: stdout: N/A stderr: N/A console.log: 0. Sandbox Error: Error: Use fs.readFileSync. fs.readFile not enabled in sandbox.
+Observation: The REPL is giving me an error because it doesn't allow the use of fs.readFile for security reasons.
+Thought: I can modify my code to use fs.readFileSync instead.
+Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } ]
+Result: stdout: N/A stderr: N/A console.log: NA
 Observation: Nothing printed out. I must keep trying until I succeed. I will try revising my code.
-Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; console.log(data)}); ]
+Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); console.log(data); ]
 Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
 Observation: The code did not error and output is as expected. This completes what I was asked to do.
 Finish: I have printed the requested file, stats.html, to the console.
@@ -49,7 +46,7 @@ Finish: I have printed the requested file, stats.html, to the console.
 Available Plugins:
 Node.js REPL:
 Result = REPL[inputString]
-NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFile & fs.writeFile are the only fs methods allowed. Use global ALLOWED_FUNCTIONS array to see what other modules are available in the sandbox.
+NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFileSync & fs.writeFileSync are the only fs methods allowed. Use global ALLOWED_FUNCTIONS array to see what other modules are available in the sandbox.
 Each line begins with 'Prefix: ' to signify input type. Input MUST be on a single line or will get truncated, especially when using plugins.
 
 Emulating the example above, lets begin:
@@ -83,11 +80,6 @@ async function loadModules() {
   }
 
 
-
-
-
-
-
 ///....////
 
 
@@ -102,14 +94,16 @@ async function apiReq(message,prefix) {
   let response;
   //manage retries
   for (let i = 0; i < RETRIES_COUNT && req_count < TOTAL_ALLOWED_REQS; i++) {
-    req_count+=1;
+    req_count+=1; i+=1;
     response = await generateOutput(prompt);
     if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+'] END Unfilitered Output -----------\n');
     const validatedInput = inputValidator(response, prefix);
     if (validatedInput !== null) {
         console.log(C_Yellow,'[ '+req_count+' ] '+prefix+':')
         console.log(C_Green,validatedInput)
-        global_history+='\n'+validatedInput
+        //'action_REPL' logs the code str _after_ extraction, prob rarely ever matters.
+        if(prefix != "YesNo" && prefix != 'Action') global_history+='\n'+prefix+': '+ validatedInput
+        //console.log('\n>>> ',prefix+': '+ validatedInput)
       return validatedInput;
     } else { 
         console.log(C_BrightBlack,'[ '+req_count+' ] : [ '+prefix+' ] Response Rejected.') } 
@@ -155,17 +149,19 @@ function inputValidator(input, prefix) {
 /////
 async function action_REPL(command) {
     console.log(C_Blue,'>>>>>>>>>>>>>>>>>>>> Plugin: REPL[]: >>>>>>>>>>>>>>>>>>>>\n');
+     
+      console.log(C_Blue,'Plugin: REPL[ '+command+' ]:\n')
     
       let evald = await sandbox_run(command);
       
+      
       global_history+='\nAction: REPL['+command+']'
-      let resultString = '\nResult: stdout: ' + (evald.stdout || 'N/A') +
+      let resultString = '\nResult: \nstdout: ' + (evald.stdout || 'N/A') +
       '\nstderr: ' + (evald.stderr || 'N/A') +
       '\nconsole.log: ' + (evald.v_console || 'N/A')+'\n';
     
       global_history+=resultString
-      
-      console.log(C_Blue,'Plugin: REPL[ '+command+' ]:\n')
+     
       console.log(C_Blue,'>>>>'+resultString+'>>>>');
       console.log(C_Blue,'<<<<<<<<<<<<<<<<<<<< END OF Plugin: REPL[] <<<<<<<<<<<<<<<<<<<<\n')
             
@@ -184,9 +180,7 @@ function parseActionStatement(input) {
         const actionArgs = input.substring(firstBracketIndex + 1, lastBracketIndex);
         //save to obj
         input = { actionName, actionArgs }
-        
-        //console.log('Parser Debug: input is:',JSON.stringify(input))
-        
+       
         return input;
         
     } catch(e) {
@@ -282,23 +276,42 @@ const rl = readline.createInterface({
 });
 
 async function run() {
-  let inputString = process.argv[2];
-  inputString = inputString.slice(1, -1);
+  let inputString = '';
+    try{
+     inputString = process.argv[2].slice(1, -1).trim();
+    } catch(e) {inputString = ''; }  
   virtualFs.init();
-  if (inputString) {
+  if (inputString != '') {
     await delegator(inputString);
   } else {
+      console.log('>>> Welcome. Entering "*s" at any time will switch to VM interpreter. <<<')
     while (true) {
-      inputString = await new Promise((resolve) => {
-        rl.question('Enter Question: ', (input) => {
-          resolve(input);
-        });
+      let input = await new Promise((resolve) => {
+        rl.question('Enter Question: ', resolve);
       });
-      await delegator(inputString);
-      rl.close();
+      if(!input.startsWith('*s')) {
+      await delegator(input);
+      } 
+      if(input.startsWith('*s')) {
+          console.log("'exit' to exit.")
+          while(input != 'exit') {
+          //start over till 'exit'
+        input = await new Promise((resolve) => {
+        rl.question('[vm] >>>  ', resolve);
+      });
+        let response = await sandbox_run(input)
+        console.log(response)
+        
+    };
+      }
     }
   }
-}; run().catch(e=>console.error(e));
+  console.log('<<<< Goodbye. <<<<')
+  rl.close();
+}
+
+run().catch((e) => console.error(e));
+
 
 }//END loadModules context.
 loadModules().catch(error => {
@@ -315,52 +328,59 @@ loadModules().catch(error => {
 //// everything below is sandbox code:
 //fakefs area:
 //persist the fakefs? 
+
 function fakefs_do(mode, obj) {
     if (mode === 'put') {
+        try {
         let data = {};
         if (fs.existsSync('fakefs.txt')) {
           const content = fs.readFileSync('fakefs.txt', 'utf8');
           data = JSON.parse(content);
         }
-        data = {...data, ...obj};
+        data = {...obj, ...data};
         const content = JSON.stringify(data);
         fs.writeFileSync('fakefs.txt', content);
+        console.log('"'+Obj.keys(obj)+'" saved successfully.')
+        } catch(e) { console.log('"'+obj.path+'" save FAILED.')
+        }
     } else if (mode === 'get') {
       try {
     const content = fs.readFileSync('fakefs.txt', 'utf-8');
     return JSON.parse(content);
-      } catch(e) { console.error("Could not load fakefs.txt, (returning empty object): ",e)
+      } catch(e) { console.log("Could not load fakefs.txt, (returning empty object): ",e)
         return {} }; 
   } else {
     throw new Error('Invalid mode: ' + mode);
   }
 };
 
+
+
 //cheap virtual fs so Agent can have persistent
 //'files' in memory:
 var virtualFs = {
   files: {},
-  readFile: function (path, options, callback) {
+  readFileSync: function (path, options) {
     if(path.startsWith('./')) path = path.substring(2)
     this.files = fakefs_do('get',this.files) //persist fakefs
     const file = this.files[path];
     if (!file) {
-      return callback(new Error(`ENOENT: no such file or directory, open '${path}'`));
-    }
-    callback(null, options.encoding ? file.toString(options.encoding) : file);
+      process.stderr.write(`ENOENT: no such file or directory, open '${path}'`);
+      return null;
+    } else { return file; }
+   
   },
-  writeFile: function (path, data, options, callback) {
+  writeFileSync: function (path, data, options) {
       if(path.startsWith('./')) path=path.substring(2)
-    this.files[path] = options.encoding ? Buffer.from(data, options.encoding) : data;
-    fakefs_do('put',this.files) //persist fakefs. 
-    callback();
-  },
+    this.files[path] = data;
+    fakefs_do('put',this.files);
+    },
   init: function() {
 //attach error messages to every other fs method:
 for (const method in fs) {
-  if (method !== 'readFile' && method !== 'writeFile' && typeof fs[method] === 'function') {
+  if (method !== 'readFileSync' && method !== 'writeFileSync' && typeof fs[method] === 'function') {
     sandbox.fs[method] = function(...args) {
-      console.log('Error: ' + method + ' method is not available in sandbox. Available methods: [ fs.readFile, fs.writeFile ]')
+      process.stderr.write('Error: ' + method + ' method is not available in sandbox. Available "fs" methods: [ fs.readFileSync, fs.writeFileSync ]');
     }
   }
 };
@@ -368,11 +388,10 @@ for (const method in fs) {
 }; //end virtualFs
 
 
-
 //sandhox 'vm'. anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
 
 //sandbox config:
-const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'process', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
+const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
     //allow AA to list whats allowed so we dont have to watch it try/fail 100 ways in the dark(hopefully)
     const ALLOWED_FUNCTIONS = [...allowedFunctions];
@@ -381,27 +400,27 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
     ...global,
     ALLOWED_FUNCTIONS,
     fs: {
-    readFile: function(path, options, callback) {
-      virtualFs.readFile(path, options, callback);
+    readFileSync: function(path, options) {
+      virtualFs.readFileSync(path, options);
     },
-    writeFile: function(path, data, options, callback) {
-      if (typeof options === 'function') {
-        callback = options;
-        options = {};
-      }
-      virtualFs.writeFile(path, data, options, callback);
+    writeFileSync: function(path, data, options) {
+      callback = virtualFs.writeFileSync(path, data, options)
     }
-  },
+    },
     v_stdout: "",
     v_stderr: "",
     v_console: "",
     console: { 
     log: (...args) => { 
-      sandbox.v_console += args.join(' ') + '\n'; 
-    } }, 
-    process: {
+      sandbox.v_console +='\n'+ args.join(' ');
+    },
+    error: (...args) => { 
+      sandbox.v_stderr += '\n' +args.join(' '); 
+    }
+    },
+    process: Object.assign({}, process, {
     stdout: {
-      write: (chunk, encoding, callback) => {
+      write: (chunk, encoding='utf8', callback) => {
         sandbox.v_stdout += chunk.toString();
         if (callback) {
           callback();
@@ -409,18 +428,18 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
       }
     },
     stderr: {
-      write: (chunk, encoding, callback) => {
-        sandbox.v_stderr += chunk.toString();
+      write: (chunk, encoding='utf8', callback) => {
+        sandbox.v_stderr += chunk.toString(encoding);
         if (callback) {
           callback();
         }
       }
     }
-  },
+  }),
     require: function(moduleName){
     if(moduleName != 'fs') {//fake fs override
     if (!allowedFunctions.includes(moduleName) ) {
-      throw new Error(`Module "${moduleName}" is not allowed in this sandbox.`);
+      this.v_stderr+=`Module "${moduleName}" is not allowed in this sandbox.`;
     }
     return require(moduleName);
   }else { return sandbox.fs }},
@@ -441,6 +460,8 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
 var vm_instance = vm.createContext(sandbox)
 
 
+
+
 async function sandbox_run(code){
 //reset output logs    
 sandbox.v_stdout="";
@@ -454,12 +475,16 @@ code = `
 try {
     ${code}
 } catch (e)
- { console.log('0. Sandbox Error:', e);
+ { process.stderr.write('0. Sandbox Error:', e);
  };
 `;
 
 // Execute the code in the vm context
-let nerp = await vm.runInContext(code,vm_instance);
+await vm.runInContext(code,vm_instance);
+
+// Wait for 100ms to allow time for the output to be captured
+  await new Promise(resolve => setTimeout(resolve, 200));
+
 
 } catch (error) {
     console.log('1. Sandbox Error: Caught: ',error)
@@ -469,9 +494,9 @@ let nerp = await vm.runInContext(code,vm_instance);
   }
 
 //the way we pass results 'up'.
-v_console = sandbox.v_console || 'NA'
-v_stdout = sandbox.v_stdout || 'NA'
-v_stderr = sandbox.v_stderr || 'NA'
+v_console = sandbox.v_console || 'N/A.'
+v_stdout = sandbox.v_stdout || 'N/A.'
+v_stderr = sandbox.v_stderr || 'N/A.'
 
 //why does console response often(perhaps always?) start with 'undefined'? dont care moving on
 if(typeof v_console == 'string' && v_console.startsWith('undefined')) v_console = v_console.substring(9)
