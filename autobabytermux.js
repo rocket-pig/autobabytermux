@@ -18,7 +18,7 @@ MAX_TOKENS = 200;
 RETRIES_COUNT = 3;
 
 //Termux-api Plugin. Allowed commands.  (You need to apt install termux-api.)
-TERMUX_COMMANDS = ['termux-tts-speak','termux-toast','termux-notification-list', 'termux-sms-list','termux-vibrate'];
+TERMUX_COMMANDS = ['termux-battery-status','termux-tts-speak','termux-toast','termux-notification-list', 'termux-sms-list','termux-vibrate','termux-notification'];
 
 
 //end of settings area.
@@ -34,16 +34,16 @@ var global_history = `Available Plugins:
 REPL[inputString]
 Usage: This is a sandboxed Node.js REPL, it is NOT a bash prompt. There is a single-directory file saving and reading mechanism: fs.readFileSync & fs.writeFileSync are the only fs methods that work, and no '/' dir hierarchy exists. Also, the global ALLOWED_FUNCTIONS array contains a READ-ONLY list of modules in the sandbox.
 * Termux-api:
-    Usage: Ex:'termux-<command-with-dashes> -d1000' is mapped to termux.command_with_dashes('-d1000') in the REPL. Available commands are listed in termux.available_commands. The methods all return Promises, so .then() chaining is required.
+    Usage: Ex:'termux-tts-speak -r1 "hello world"' IS EQUAL TO: 'termux.ttsSpeak("-r1 hello world")' in the REPL. Available commands are listed in termux.availableCommands. The methods all return Promises, so .then() chaining is required.
 Rules:
 Pay attention to command outputs! Each line begins with 'Prefix: ' to signify input type. You will be informed after each step what your next task is. Task history will be listed here:
-
+[BEGIN]
 Question: use termux-api to vibrate the phone.
-Observation: The Termux-api available commands are at termux.available_commands.
+Observation: The Termux-api available commands are at termux.availableCommands.
 Thought: I will list the available plugins and look for something appropriate.
-Action: REPL[ console.log(termux.available_plugins) ]
+Action: REPL[ console.log(termux.availableCommands) ]
 Result: 
-console.log: termux-tts-speak,termux-toast,termux-notification-list,termux-sms-list,termux-vibrate
+console.log: 'batteryStatus,ttsSpeak,toast,notificationList,smsList,vibrate,notification
 stdout:N/A
 stderr:N/A
 Thought: I can use the command 'termux-vibrate' in the REPL. I dont know its usage but I can check that by calling it with '-h'.
@@ -58,7 +58,7 @@ Result:
 console.log: Phone vibrated!
 stdout: N/A
 stderr: N/A
-Finished!
+[Finished!]
 -------------Next Question!
 Question: `;
 
@@ -118,10 +118,9 @@ async function apiReq(message,prefix) {
 }
   let prompt = global_history + '\n' + message;
   let response;
-  let req_count = 0;
   //manage retries
   for (let i = 0; i < RETRIES_COUNT && req_count < TOTAL_ALLOWED_REQS; i++) {
-    req_count+=1; i+=1;
+    req_count+=1;RETRIES_COUNT++;
     response = await generateOutput(prompt);
     if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+']')
     const validatedInput = inputValidator(response, prefix);
@@ -133,7 +132,7 @@ async function apiReq(message,prefix) {
         //console.log('\n>>> ',prefix+': '+ validatedInput)
       return validatedInput;
     } else { 
-        console.log(C_BrightBlack,'[ '+req_count+' ] : [ '+prefix+' ] Response Rejected.') } 
+        console.log(C_BrightBlack,'[ '+RETRIES_COUNT+' ] : [ '+prefix+' ] Response Rejected.') } 
   }
   return null;
 }
@@ -432,10 +431,15 @@ for (const method in fs) {
 
 
 //termux-<command> Plugin. Gets allowed commands from array in settings area.
-const termux = {available_commands:[...TERMUX_COMMANDS]};
+//camelCase from termux-camel-case
+const termux = {
+  availableCommands: TERMUX_COMMANDS.map(cmd =>
+    cmd.replace(/^termux-/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/-/g, '')
+  )
+};
 
 for (const cmd of TERMUX_COMMANDS) {
-    const propName = cmd.replace(/termux-/, '').replace(/-/g, '_');
+  const propName = cmd.replace(/^termux-/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/-/g, '');
   termux[propName] = async function (...args) {
     let command = cmd;
     if (args.length > 0) {
@@ -452,6 +456,9 @@ for (const cmd of TERMUX_COMMANDS) {
     });
   };
 }
+
+
+
 
 //sandhox 'vm'. anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
 
