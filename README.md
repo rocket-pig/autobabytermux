@@ -4,7 +4,7 @@ In GPT's words:
 
 >Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins: Node REPL and/or Termux:API to arrive at an answer/solution. 
 
->The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
+>The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, interact with almost every aspect of your OS via Termux:API, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
 
 >At its core, autobabytermux is an autonomous AI agent that can run entirely on your phone. It requires only ONE npm module - openai - to function. 
 
@@ -20,6 +20,8 @@ In GPT's words:
  Run 
 
 ```npm install openai```
+
+(Optional: ```apt install termux-api``` if you want AA to have access to all [this glory](https://wiki.termux.com/wiki/Termux:API)
 
 Have an OpenAI key ready, stick it on first line of script.  Then, run
 
