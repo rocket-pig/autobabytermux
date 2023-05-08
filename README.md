@@ -2,7 +2,7 @@
 
 In GPT's words:
 
->Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins (including a working JavaScript interpreter) to arrive at an answer. 
+>Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins: Node REPL and/or Termux:API to arrive at an answer/solution. 
 
 >The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
 
@@ -14,6 +14,12 @@ In GPT's words:
 
 
 ### Latest Updates:
+__May 8 23__:
+* Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. 
+
+
+[merp](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
+
 
 __May 7 2023__:
 * Found a stupid typo: stdout/stderr/log from vm works as it should have been all along now.
