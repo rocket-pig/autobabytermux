@@ -13,7 +13,25 @@ In GPT's words:
 >It is worth noting that autobabytermux is a massively micro version of similar projects that typically require advanced dependencies such as numpy and pandas. Because autobabytermux is designed to run within Termux on a phone, it is much more lightweight and accessible. 
 
 
-### Latest Updates:
+### Usage:
+
+```git clone https://github.com/rocket-pig/autobabytermux; cd autobabytermux```
+
+ Run 
+
+```npm install openai```
+
+Have an OpenAI key ready, stick it on first line of script.  Then, run
+
+```node autobabytermux.js``` 
+
+and the interactive CLI starts. You can also pass a question in on the command line (in quotes).  You can type ```*s``` at any time to debug the sandbox environment directly.
+The vm instance persists until the script stops.  The Agent has a fake, single-folder 'filesystem' that works just as it would expect, ie using (fs.readFileSync, fs.writeFileSync). 
+
+...Autonomous AI Agent, on your burner. Shrugs rite? What a world
+
+
+### Latest Updates / Changelog:
 __May 8 23__:
 * Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. 
 
@@ -40,23 +58,6 @@ __May 6 2023__:
 __May 3 2023__: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesystem' that's saved to fakefs.txt and restored each time.  The sandbox otherwise prevents filesystem writes *even to the sandbox* (using normal methods.) So you can let it do it's thing without worrying about it trashing your drive, AND be able to run commands that save/restore states/data.
 
 
-### Usage:
-
-```git clone https://github.com/rocket-pig/autobabytermux; cd autobabytermux```
-
- Run 
-
-```npm install openai```
-
-Have an OpenAI key ready, stick it on first line of script.  Then, run
-
-```node autobabytermux.js``` 
-
-and the interactive CLI starts. You can also pass a question in on the command line.
-The vm instance persists until the script stops.  The Agent has a fake, single-folder 'filesystem' that works just as it would expect, (fs.readFile, fs.writeFile). _Edit: removed the [s] hook but it'll go back in eventually._   ~~The user can press [s] to access the 
-vm instance directly.~~ 
-
-...Autonomous AI Agent, on your burner. Shrugs rite? What a world
 
 ### Latest:
 ![img](https://i.ibb.co/9bJtN7J/Screenshot-2023-05-06-12-23-24.png)
