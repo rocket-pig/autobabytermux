@@ -17,40 +17,51 @@ MAX_TOKENS = 200;
 //If LLM doesnt follow input request, how many attempts at re-prompting PER STEP do we try before giving up? Note that retries count toward global TOTAL_ALLOWED_REQS.
 RETRIES_COUNT = 3;
 
+//Termux-api Plugin. Allowed commands.  (You need to apt install termux-api.)
+TERMUX_COMMANDS = ['termux-tts-speak','termux-toast','termux-notification-list', 'termux-sms-list','termux-vibrate'];
+
+
 //end of settings area.
 
 
+const { exec } = require('child_process');
 const fs = require('fs');
 const vm = require('vm');
 const readline = require('readline');
 
-// var global_history = `Question: ` 
+var global_history = `Available Plugins:
+* Node.js REPL: 
+REPL[inputString]
+Usage: This is a sandboxed Node.js REPL, it is NOT a bash prompt. There is a single-directory file saving and reading mechanism: fs.readFileSync & fs.writeFileSync are the only fs methods that work, and no '/' dir hierarchy exists. Also, the global ALLOWED_FUNCTIONS array contains a READ-ONLY list of modules in the sandbox.
+* Termux-api:
+    Usage: Ex:'termux-<command-with-dashes> -d1000' is mapped to termux.command_with_dashes('-d1000') in the REPL. Available commands are listed in termux.available_commands. The methods all return Promises, so .then() chaining is required.
+Rules:
+Pay attention to command outputs! Each line begins with 'Prefix: ' to signify input type. You will be informed after each step what your next task is. Task history will be listed here:
 
-//testing without ANY preprompt and it also seems to work. Which saves 2k chars every request. You can change this to the one above to try it out yourself.
-var global_history = `[EXAMPLE]
-Question: Get local file stats.html, print to screen
-Observation: I need to read and extract data from a file.
-Thought: I can use Node.js to read the file and extract the data, then format it for printing.
-Action: REPL[ const fs = require('fs'); fs.readFile('stats.html', 'utf8', (err, data) => { if (err) throw err; const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } }); ]
-Result: stdout: N/A stderr: N/A console.log: 0. Sandbox Error: Error: Use fs.readFileSync. fs.readFile not enabled in sandbox.
-Observation: The REPL is giving me an error because it doesn't allow the use of fs.readFile for security reasons.
-Thought: I can modify my code to use fs.readFileSync instead.
-Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); const regex = /<td class="stats">([\d,]+)<\/td>/g; let match; while ((match = regex.exec(data)) !== null) { console.log(match[1].replace(/,/g, '')); } ]
-Result: stdout: N/A stderr: N/A console.log: NA
-Observation: Nothing printed out. I must keep trying until I succeed. I will try revising my code.
-Action: REPL[ const fs = require('fs'); const data = fs.readFileSync('stats.html', 'utf8'); console.log(data); ]
-Result: stdout: NA stderr: NA console.log:<html> 42 16 28.8 96K 10LARGE </html>
-Observation: The code did not error and output is as expected. This completes what I was asked to do.
-Finish: I have printed the requested file, stats.html, to the console.
-[/EXAMPLE]
-Available Plugins:
-Node.js REPL:
-Result = REPL[inputString]
-NOTE: This is the Node.js REPL, it is NOT a bash prompt. fs.readFileSync & fs.writeFileSync are the only fs methods allowed. Use global ALLOWED_FUNCTIONS array to see what other modules are available in the sandbox.
-Each line begins with 'Prefix: ' to signify input type. Input MUST be on a single line or will get truncated, especially when using plugins.
-
-Emulating the example above, lets begin:
+Question: use termux-api to vibrate the phone.
+Observation: The Termux-api available commands are at termux.available_commands.
+Thought: I will list the available plugins and look for something appropriate.
+Action: REPL[ console.log(termux.available_plugins) ]
+Result: 
+console.log: termux-tts-speak,termux-toast,termux-notification-list,termux-sms-list,termux-vibrate
+stdout:N/A
+stderr:N/A
+Thought: I can use the command 'termux-vibrate' in the REPL. I dont know its usage but I can check that by calling it with '-h'.
+Action: REPL[ termux.vibrate('-h').then(r=>console.log(r)) ]
+Result:
+console.log: 'Usage: termux-vibrate [-d duration] [-f] Vibrate the device.\n-d duration  the duration to vibrate in ms (default:1000)\n-f force vibration even in silent mode'
+stdout:NA
+stderr:NA
+Thought:I now know how to complete the original Question.
+Action.REPL[ termux.vibrate('-d1000').then((r) => {if(r=='')console.log("Phone vibrated!")}) ]
+Result:
+console.log: Phone vibrated!
+stdout: N/A
+stderr: N/A
+Finished!
+-------------Next Question!
 Question: `;
+
 
 
 async function loadModules() {
@@ -61,23 +72,38 @@ async function loadModules() {
   });
   const openai = new OpenAIApi(configuration);
 
-  async function generateOutput(message) {
-    const prompt = message.trim();
-    const response = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
-      
-    });
-    const { choices, error } = response.data;
-    if (error) {
-      throw new Error('---API Error:\n',error.message);
-    }
-    if (Array.isArray(choices)) {
-      return choices[0].message.content.trim();
-    } else {
-      return choices.trim();
+
+async function generateOutput(message) {
+  const prompt = message.trim();
+  let attempts = 0;
+  let hasFinished = false;
+  let output = null;
+  
+  while (attempts < 3 && !hasFinished) {
+    try {
+      attempts++;
+      const response = await openai.createChatCompletion({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: prompt }],
+      });
+      const { choices, error } = response.data;
+      if (error) {
+        console.log(C_Red,'-------------API Error/Timeout attempt #'+attempts) //:\n',error.message);
+      }
+      if (Array.isArray(choices)) {
+        output = choices[0].message.content.trim();
+      } else {
+        output = choices.trim();
+      }
+      hasFinished = true;
+    } catch(e) { 
+      console.log(C_Red,'-------------API Error/Timeout attempt #'+attempts)
     }
   }
+
+  return output;
+}
+
 
 
 ///....////
@@ -92,11 +118,12 @@ async function apiReq(message,prefix) {
 }
   let prompt = global_history + '\n' + message;
   let response;
+  let req_count = 0;
   //manage retries
   for (let i = 0; i < RETRIES_COUNT && req_count < TOTAL_ALLOWED_REQS; i++) {
     req_count+=1; i+=1;
     response = await generateOutput(prompt);
-    if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+'] END Unfilitered Output -----------\n');
+    if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+']')
     const validatedInput = inputValidator(response, prefix);
     if (validatedInput !== null) {
         console.log(C_Yellow,'[ '+req_count+' ] '+prefix+':')
@@ -173,7 +200,12 @@ function parseActionStatement(input) {
         //get Plugin name
         const argsn = /^(.*?)\[/;
         const m2 = argsn.exec(input);
-        const actionName = m2[1].trim().toLowerCase();
+        let actionName;
+        if (m2[1] && m2[1].length > 1) {
+          actionName = m2[1].trim().toLowerCase();
+        } else {
+            return null;
+        }
         //get Plugin input str. regex abs refuses to cooperate, so we found our own way to get first/last bracket location.
         const lastBracketIndex = input.lastIndexOf("]");
         const firstBracketIndex = input.indexOf("[");
@@ -205,9 +237,9 @@ async function delegator(question) {
       // Step 2: Retrieve an observation
       let p;
       let q = 'Question: '+question+'\n';
-      if(first_pass) p='Task: Create a one-line "Observation: " statement informed by the Question above. Follow the style shown.'
-      if(!first_pass) p='Task: Create a one-line "Observation: " statement informed by the history and Result above. What other way could you approach solving this problem / answering this question?'
-      observation = await apiReq(q+p,'Observation');
+      if(first_pass) p= q + 'Task: Create a one-line "Observation: " statement informed by the Question above. Follow the style shown.'
+      if(!first_pass) p='Task: Create a one-line "Observation: " statement informed by the history and Result above. Take special note of the above stdout, stderr and console.log outputs. What did you learn? Knowing what you know now, What other way could you approach solving this problem / answering this question?'
+      observation = await apiReq(p,'Observation');
     }
     
     if (!thought) {
@@ -218,7 +250,7 @@ async function delegator(question) {
     
     if (!action) {
       // Step 3: Generate action/plugin request.
-      let p='Task: Now, create an "Action: " statement informed by your Thought statement above. Syntax: "Action: REPL[ your js code here no line breaks ]" (without quotes).'// OR 'Search[ your search phrase here ]' (without quotes)."
+      let p='Task: Now, create an "Action: " statement informed by your Thought statement above. Syntax: "Action: REPL[ your js code here ]" (without quotes).'// OR 'Search[ your search phrase here ]' (without quotes)."
       action = await apiReq(p,'Action');
     }//end Action
     
@@ -233,17 +265,17 @@ async function delegator(question) {
     }
     if(actionObj.actionName == 'search') { 
         result = "'Error: Search Plugin deactivated.'"
-    }
+    } 
     
     // Step 5: Determine if the result answers the question
     
-    let p=`Task: Respond with Yes or No. Are all three statements true? 1.Your code completed without error. 2.Your code printed the expected output. 3.You have obtained the necessary information to fully answer the original Question, OR have fully completed the original task. ALL THREE must be true for Yes:`
+    let p=`Task: Respond with Yes or No. Are all three statements true? 1.Your code completed without error. 2.Your code printed the expected output. 3.You have obtained the necessary information to fully answer the original Question, OR have fully completed the original task. ALL THREE must be true for Yes. Respond with No if there are additional steps needed to complete your task.`
     let prompt = await apiReq(p,'YesNo');
 
     if (prompt && prompt.toLowerCase().startsWith('yes')) {
         
       // Step 6a: Compose a finish statement
-      let p='Task: Provide a comprehensive "Finish: " statement: your conclusion based on above history, answering the Question in full.'
+      let p='Task: Provide a "Finish: " statement: your conclusion based on above history, answering the Question in full.'
       action = await apiReq(p,'Finish');
       unfinished = false;
       req_count = 1;
@@ -276,6 +308,13 @@ const rl = readline.createInterface({
 });
 
 async function run() {
+    
+    process.on('uncaughtException', (err) => {
+  console.log('(Un)caught exception:', err);
+  console.log('Press Enter to continue or Ctrl-C to exit');
+  process.stdin.once('data', () => {});
+});
+
   let inputString = '';
     try{
      inputString = process.argv[2].slice(1, -1).trim();
@@ -327,8 +366,6 @@ loadModules().catch(error => {
 
 //// everything below is sandbox code:
 //fakefs area:
-//persist the fakefs? 
-
 function fakefs_do(mode, obj) {
     if (mode === 'put') {
         try {
@@ -340,8 +377,10 @@ function fakefs_do(mode, obj) {
         data = {...obj, ...data};
         const content = JSON.stringify(data);
         fs.writeFileSync('fakefs.txt', content);
-        console.log('"'+Obj.keys(obj)+'" saved successfully.')
-        } catch(e) { console.log('"'+obj.path+'" save FAILED.')
+        return 'success';
+        } catch(e) { 
+            sandbox.v_stdout="";
+            sandbox.v_stderr='Error: "'+Object.keys(obj)+'" save FAILED.\n'
         }
     } else if (mode === 'get') {
       try {
@@ -361,26 +400,30 @@ function fakefs_do(mode, obj) {
 var virtualFs = {
   files: {},
   readFileSync: function (path, options) {
-    if(path.startsWith('./')) path = path.substring(2)
-    this.files = fakefs_do('get',this.files) //persist fakefs
+    if(path.includes('/')) {sandbox.v_stderr+="Error: No paths allowed in single-dir filesystem. use filename.ext only."; return;}
+    this.files = fakefs_do('get',this.files);
     const file = this.files[path];
     if (!file) {
-      process.stderr.write(`ENOENT: no such file or directory, open '${path}'`);
+      sandbox.v_stderr+=`ENOENT: no such file or directory, open '${path}'\n`
       return null;
-    } else { return file; }
+    } 
+    return file; 
    
   },
   writeFileSync: function (path, data, options) {
-      if(path.startsWith('./')) path=path.substring(2)
+      if(path.includes('/')) {sandbox.v_stderr+="Error: No paths allowed in single-dir filesystem. use filename.ext only."; return;}
     this.files[path] = data;
-    fakefs_do('put',this.files);
+    let retval = fakefs_do('put',this.files);
+    if(retval == 'success') {
+        sandbox.v_stdout+='"'+path+'" saved successfully.\n';  
+        }
     },
   init: function() {
 //attach error messages to every other fs method:
 for (const method in fs) {
   if (method !== 'readFileSync' && method !== 'writeFileSync' && typeof fs[method] === 'function') {
     sandbox.fs[method] = function(...args) {
-      process.stderr.write('Error: ' + method + ' method is not available in sandbox. Available "fs" methods: [ fs.readFileSync, fs.writeFileSync ]');
+      sandbox.v_stderr+='Error: "fs.' + method + '" method is not available in sandbox. Available "fs" methods: [ "fs.readFileSync", "fs.writeFileSync" ]\n';
     }
   }
 };
@@ -388,17 +431,40 @@ for (const method in fs) {
 }; //end virtualFs
 
 
+//termux-<command> Plugin. Gets allowed commands from array in settings area.
+const termux = {available_commands:[...TERMUX_COMMANDS]};
+
+for (const cmd of TERMUX_COMMANDS) {
+    const propName = cmd.replace(/termux-/, '').replace(/-/g, '_');
+  termux[propName] = async function (...args) {
+    let command = cmd;
+    if (args.length > 0) {
+        command += ` ${args.join(' ')}`;
+    }
+    return new Promise((resolve, reject) => {
+      exec(command, (err, stdout, stderr) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(stdout.trim());
+        }
+      });
+    });
+  };
+}
+
 //sandhox 'vm'. anything not listed in allowedFunctions will refuse to import (in a way that the LLM can see AND doesnt crash the vm or the script.)
 
 //sandbox config:
 const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'clearImmediate', 'Buffer', 'crypto', 'http', 'https', 'querystring', 'string_decoder', 'util', 'zlib', 'stream', 'tls', 'net', 'dgram', 'os', 'path', 'url', 'punycode', 'string_decoder', 'tty', 'constants', 'vm', 'Math'];
 
-    //allow AA to list whats allowed so we dont have to watch it try/fail 100 ways in the dark(hopefully)
+    //allow AA to list whats allowed so we dont have to watch it try/fail 100 ways in the dark(hopefully). Edit: no its still an idiot and will try stuff that doesnt work endlessly and never check this list. Not sure how to prompt it to..? seek dox in the environment? TODO.
     const ALLOWED_FUNCTIONS = [...allowedFunctions];
 
     const sandbox = {
     ...global,
     ALLOWED_FUNCTIONS,
+    termux,
     fs: {
     readFileSync: function(path, options) {
       virtualFs.readFileSync(path, options);
@@ -412,10 +478,10 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
     v_console: "",
     console: { 
     log: (...args) => { 
-      sandbox.v_console +='\n'+ args.join(' ');
+      sandbox.v_console += args.join(' ') +'\n';
     },
     error: (...args) => { 
-      sandbox.v_stderr += '\n' +args.join(' '); 
+      sandbox.v_stderr += args.join(' ') +'\n'; 
     }
     },
     process: Object.assign({}, process, {
@@ -437,9 +503,9 @@ const allowedFunctions = ['setTimeout', 'setInterval', 'clearTimeout', 'clearInt
     }
   }),
     require: function(moduleName){
-    if(moduleName != 'fs') {//fake fs override
+    if(moduleName !== 'fs') {//fake fs override
     if (!allowedFunctions.includes(moduleName) ) {
-      this.v_stderr+=`Module "${moduleName}" is not allowed in this sandbox.`;
+      sandbox.v_stderr+=`Import Error: Module "${moduleName}" is not allowed in this sandbox.`;
     }
     return require(moduleName);
   }else { return sandbox.fs }},
@@ -469,13 +535,13 @@ sandbox.v_stderr="";
 sandbox.v_console="";
 
 //catch vm throws INSIDE vm so LLM can see them.
-//the 0. & 1. prefix is to help see where things were thrown.
+//the [0] & [1] prefix is to help see where things were thrown.
 try {
 code = `
 try {
     ${code}
 } catch (e)
- { process.stderr.write('0. Sandbox Error:', e);
+ { process.stderr.write('[0]'+e);
  };
 `;
 
@@ -483,17 +549,18 @@ try {
 await vm.runInContext(code,vm_instance);
 
 // Wait for 100ms to allow time for the output to be captured
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 100));
 
 
 } catch (error) {
-    console.log('1. Sandbox Error: Caught: ',error)
-    if(typeof v_console == 'undefined') v_console = 'NA';
-    if(typeof v_stderr == 'undefined') v_stderr = 'NA';
-    return { v_stdout: error.toString().slice(0, 150) + '[...]', v_console, v_stderr };
+    console.log('[1] Sandbox Error: Caught: ',error)
+    if(typeof sandbox.v_console == 'undefined') sandbox.v_console = 'NA';
+    if(typeof sandbox.v_stderr == 'undefined') sandbox.v_stderr = 'NA';
+    return { stderr: error.toString(), v_console: sandbox.v_console, stdout:sandbox.v_stdout };
   }
 
-//the way we pass results 'up'.
+//not caught, so
+//we pass results 'up'.
 v_console = sandbox.v_console || 'N/A.'
 v_stdout = sandbox.v_stdout || 'N/A.'
 v_stderr = sandbox.v_stderr || 'N/A.'
