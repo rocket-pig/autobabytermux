@@ -35,7 +35,7 @@ The vm instance persists until the script stops.  The Agent has a fake, single-f
 
 ### Latest Updates / Changelog:
 __May 8 23__:
-* Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. 
+* Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. And yes, the toast displayed! User can decide what api commands are available to the Agent in the global settings area at the top of the script.
 
 
 ![merp](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
