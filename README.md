@@ -18,7 +18,7 @@ __May 8 23__:
 * Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. 
 
 
-[merp](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
+![merp](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
 
 
 __May 7 2023__:
