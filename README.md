@@ -82,3 +82,4 @@ You can even just yell at me in the Issues and link a gist, whatever works.  I i
 ### Further Reading / Links
 
 * https://github.com/Timothyxxx/Chain-of-ThoughtsPapers
+* https://tsmatz.wordpress.com/2023/03/07/react-with-openai-gpt-and-langchain/
