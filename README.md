@@ -88,6 +88,7 @@ You can even just yell at me in the Issues and link a gist, whatever works.  I i
 * ~~Why are we using langchain to access openAI? Langchain itself is completely unused. Find a cheaper openAI module or just write a quick one.~~
 * Throw a quick http server (ooh with socketio??) on the end to make this an API we can poke from elsewhere.
 * Bullet point 3
+* Its about to remember how to remember
 
 ### Further Reading / Links
 
