@@ -3,10 +3,10 @@ var YOUR_API_KEY = 'set me please';
 
 
 //Show 'Task:' sub-prompts in output. 
-DISPLAY_TASK_PROMPTS = true;
+DISPLAY_TASK_PROMPTS = false;
 
 //Show unfiltered responses from API in console? Uglier, but needed for debugging.
-DISPLAY_UNFILTERED = true;
+DISPLAY_UNFILTERED = false;
 
 //Max allowed requests to the API per Question.  This includes ALL prompts including retries. 
 TOTAL_ALLOWED_REQS = 30;
@@ -17,8 +17,83 @@ MAX_TOKENS = 200;
 //If LLM doesnt follow input request, how many attempts at re-prompting PER STEP do we try before giving up? Note that retries count toward global TOTAL_ALLOWED_REQS.
 RETRIES_COUNT = 3;
 
-//Termux-api Plugin. Allowed commands.  (You need to apt install termux-api.)
-TERMUX_COMMANDS = ['termux-battery-status','termux-tts-speak','termux-toast','termux-notification-list', 'termux-sms-list','termux-vibrate','termux-notification'];
+//Termux-api Plugin. Allowed commands.
+TERMUX_COMMANDS = [
+  //'termux-am',
+  'termux-media-player',
+  //'termux-am-socket',
+  'termux-media-scan',
+  //'termux-api-start',
+  'termux-microphone-record',
+  //'termux-api-stop',
+  'termux-nfc',
+  'termux-audio-info',
+  'termux-notification',
+  //'termux-backup',
+  'termux-notification-list',
+  'termux-battery-status',
+  'termux-notification-remove',
+  'termux-brightness',
+  'termux-open',
+  'termux-call-log',
+  'termux-open-url',
+  'termux-camera-info',
+  //'termux-reload-settings',
+  'termux-camera-photo',
+  //'termux-reset',
+  //'termux-change-repo',
+  //'termux-restore',
+  //'termux-chroot',
+  'termux-sensor',
+  'termux-clipboard-get',
+  //'termux-setup-package-manager',
+  'termux-clipboard-set',
+  //'termux-setup-storage',
+  'termux-contact-list',
+  'termux-share',
+  //'termux-create-package',
+  'termux-sms-inbox',
+  'termux-dialog',
+  'termux-sms-list',
+  //'termux-download',
+  'termux-sms-send',
+  //'termux-elf-cleaner',
+  'termux-speech-to-text',
+  'termux-fingerprint',
+  'termux-storage-get',
+  //'termux-fix-shebang',
+  'termux-telephony-call',
+  //'termux-gui-dialog',
+  'termux-telephony-cellinfo',
+  //'termux-gui-dmenu',
+  'termux-telephony-deviceinfo',
+  'termux-gui-files',
+  'termux-toast',
+  'termux-gui-lockscreen-notes',
+  'termux-torch',
+  //'termux-gui-pkg',
+  //'termux-tts-engines',
+  //'termux-gui-pm',
+  'termux-tts-speak',
+  //'termux-gui-proot-distro',
+  'termux-usb',
+  //'termux-gui-shell',
+  'termux-vibrate',
+  //'termux-gui-view',
+  'termux-volume',
+  'termux-info',
+  'termux-wake-lock',
+  //'termux-infrared-frequencies',
+  'termux-wake-unlock',
+  //'termux-infrared-transmit',
+  'termux-wallpaper',
+  //'termux-job-scheduler',
+  'termux-wifi-connectioninfo',
+  //'termux-keystore',
+  'termux-wifi-enable',
+  'termux-location',
+  'termux-wifi-scaninfo'
+];
 
 
 //end of settings area.
@@ -38,7 +113,7 @@ Usage: This is a sandboxed Node.js REPL, it is NOT a bash prompt. There is a sin
 Rules:
 Pay attention to command outputs! Each line begins with 'Prefix: ' to signify input type. You will be informed after each step what your next task is. Task history will be listed here:
 [BEGIN]
-Question: use termux-api to vibrate the phone.
+Question: use termux-api to speak the battery status.
 Observation: The Termux-api available commands are at termux.availableCommands.
 Thought: I will list the available plugins and look for something appropriate.
 Action: REPL[ console.log(termux.availableCommands) ]
@@ -46,16 +121,16 @@ Result:
 console.log: 'batteryStatus,ttsSpeak,toast,notificationList,smsList,vibrate,notification
 stdout:N/A
 stderr:N/A
-Thought: I can use the command 'termux-vibrate' in the REPL. I dont know its usage but I can check that by calling it with '-h'.
-Action: REPL[ termux.vibrate('-h').then(r=>console.log(r)) ]
+Thought: I can use the command 'batteryStatus' and 'ttsSpeak' in the REPL. I dont know its usage but I can check that by calling it with '-h'.
+Action: REPL[ termux.batteryStatus('-h').then(r=>console.log(r)) ]
 Result:
 console.log: 'Usage: termux-vibrate [-d duration] [-f] Vibrate the device.\n-d duration  the duration to vibrate in ms (default:1000)\n-f force vibration even in silent mode'
 stdout:NA
 stderr:NA
 Thought:I now know how to complete the original Question.
-Action.REPL[ termux.vibrate('-d1000').then((r) => {if(r=='')console.log("Phone vibrated!")}) ]
+Action.REPL[ termux.batteryStatus().then((status) => { try { status=JSON.parse(status); let stats = "The current battery status is " + status["health"] + ", " + status["percentage"] + " percent."; termux.ttsSpeak(stats);console.log('Try success.')}catch(e){termux.ttsSpeak('Sorry, something went wrong.')} }) ]
 Result:
-console.log: Phone vibrated!
+console.log: Try success.
 stdout: N/A
 stderr: N/A
 [Finished!]
@@ -141,9 +216,9 @@ async function apiReq(message,prefix) {
 //response validator.
 function inputValidator(input, prefix) {
     if (prefix == 'YesNo') {
-    const yesNoRegex = /^(yes|no).*?$/i;
+    const yesNoRegex = /^(Answer: )?(yes|no).*?$/i;
     if (yesNoRegex.test(input)) {
-      return input.toLowerCase();
+      return input.replace(/^Answer: /, '');
     }
     return null;
   } else {
@@ -243,13 +318,13 @@ async function delegator(question) {
     
     if (!thought) {
       // Step 3: Generate a thought about how to take action
-      let p='Task: Create a one-line "Thought: " statement informed by your Observation above: how will you solve the problem/question by applying the REPL plugin.'
+      let p='Task: (If needed, break down the task into smaller sub-tasks that can be completed using the REPL plugin.) Generate a one-line "Thought: " statement: How will you attempt to solve the task (or sub task) by using the REPL plugin?'
       thought = await apiReq(p,'Thought');
     }//end Thought
     
     if (!action) {
       // Step 3: Generate action/plugin request.
-      let p='Task: Now, create an "Action: " statement informed by your Thought statement above. Syntax: "Action: REPL[ your js code here ]" (without quotes).'// OR 'Search[ your search phrase here ]' (without quotes)."
+      let p='Task: Using the thought you just generated, create an "Action: " statement that can be executed using the REPL plugin. Syntax: "Action: REPL[ your js code here ]" (without quotes). Its ok if full task cannot be completed in a single REPL run.'
       action = await apiReq(p,'Action');
     }//end Action
     
@@ -267,8 +342,9 @@ async function delegator(question) {
     } 
     
     // Step 5: Determine if the result answers the question
-    
-    let p=`Task: Respond with Yes or No. Are all three statements true? 1.Your code completed without error. 2.Your code printed the expected output. 3.You have obtained the necessary information to fully answer the original Question, OR have fully completed the original task. ALL THREE must be true for Yes. Respond with No if there are additional steps needed to complete your task.`
+
+    let p=`Task: Respond with Yes or No. Are all three statements true? 1.Your code completed without error. 2.Your code printed the expected output. 3.You completed all the necessary sub-tasks to fully answer the original question or complete the task. The answer is NO if any one of those is false. Based on your findings, have you fully answered the original question or completed the task? If there are any remaining steps needed, respond with No.`
+
     let prompt = await apiReq(p,'YesNo');
 
     if (prompt && prompt.toLowerCase().startsWith('yes')) {
