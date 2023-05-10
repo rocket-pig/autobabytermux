@@ -38,15 +38,15 @@ The vm instance persists until the script stops.  The Agent has a fake, single-f
 
 __May 10 23__:
 
-// Enable termux-api 'help helper': termux-api cmds have their help @ '-help' OR '--help' OR '-h' OR sometimes no hook at all. Sometimes the help is @ stdout.. OR stderr. Sometimes the command hangs for 15 seconds first.  I finally wrote a long convoluted and tiresome script to aggregate them all into a json file.  Turning this on means you want REPL calls to '-h' to return text from the json instead of watching the Agent bomb out for eleventy tries.
+* Enable termux-api 'help helper': termux-api cmds have their help @ '-help' OR '--help' OR '-h' OR sometimes no hook at all. Sometimes the help is @ stdout.. OR stderr. Sometimes the command hangs for 15 seconds first.  I finally wrote a long convoluted and tiresome script to aggregate them all into a json file.  Turning this on means you want REPL calls to '-h' to return text from the json instead of watching the Agent bomb out for eleventy tries.
 USE_HELP_HELPER = true;
 
-// (requires: npm install minisearch) Enable 'Memory' chain of events. Previous completed tasks will be searched and top match included in conversation. Agent is prompted to revise top match (or dismiss if not relevant). Agent will also be prompted after successful 'Finish' with titling and saving new memory. Six or so memories are already included, probably add more over time.
+* Enable 'Memory' chain of events. _(requires: npm install minisearch, a tiny little 5K thing with no deps.)_ Previous completed tasks will be searched and top match included in conversation. Agent is prompted to revise top match (or dismiss if not relevant). Agent will also be prompted after successful 'Finish' with titling and saving new memory. Six or so memories are already included, probably add more over time.
 ENABLE_MEMORY = true;
 
-(Note these are both written in a way they can be toggled off - Idk why youd want to. But its all optional. Make sure you re-clone and get the new .json files.)
+_(Note these are both written in a way they can be toggled off - Idk why youd want to. But its all optional. Make sure you re-clone and get the new .json files.)_
 
-Other changes like causing termux-api cmds to give feedback 'cmd completed successfully, but with no output' if otherwise silent REALLY helps the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
+* Other changes: like causing termux-api cmds to give feedback, ala 'cmd completed successfully, but with no output' if otherwise silent has REALLY helped the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
 
 __May 8 23__:
 * Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. And yes, the toast displayed! User can decide what api commands are available to the Agent in the global settings area at the top of the script.
