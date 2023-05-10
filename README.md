@@ -44,6 +44,8 @@ USE_HELP_HELPER = true;
 * Enable 'Memory' chain of events. _(requires: npm install minisearch, a tiny little 5K thing with no deps.)_ Previous completed tasks will be searched and top match included in conversation. Agent is prompted to revise top match (or dismiss if not relevant). Agent will also be prompted after successful 'Finish' with titling and saving new memory. Six or so memories are already included, probably add more over time.
 ENABLE_MEMORY = true;
 
+See https://github.com/rocket-pig/autobabytermux/blob/main/README.md#latest for a screenshot.
+
 _(Note these are both written in a way they can be toggled off - Idk why youd want to. But its all optional. Make sure you re-clone and get the new .json files.)_
 
 * Other changes: like causing termux-api cmds to give feedback, ala 'cmd completed successfully, but with no output' if otherwise silent has REALLY helped the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
