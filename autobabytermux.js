@@ -1,12 +1,17 @@
 var YOUR_API_KEY = 'set me please';
 
 
+//Enable termux-api 'help helper': termux-api cmds have their help @ '-help' OR '--help' OR '-h' OR sometimes no hook at all. Sometimes the help is @ stdout.. OR stderr. Sometimes the command hangs for 15 seconds first.  I finally wrote a long convoluted and tiresome script to aggregate them all into a json file.  Turning this on means you want REPL calls to '-h' to return text from the json instead of watching the Agent bomb out for eleventy tries.
+USE_HELP_HELPER = true;
+
+// (requires: npm install minisearch) Enable 'Memory' chain of events. Previous completed tasks will be searched and top match included in conversation. Agent will also be prompted after successful 'Finish' with titling and saving new memory. 
+ENABLE_MEMORY = true;
 
 //Show 'Task:' sub-prompts in output. 
-DISPLAY_TASK_PROMPTS = false;
+DISPLAY_TASK_PROMPTS = true;
 
 //Show unfiltered responses from API in console? Uglier, but needed for debugging.
-DISPLAY_UNFILTERED = false;
+DISPLAY_UNFILTERED = true;
 
 //Max allowed requests to the API per Question.  This includes ALL prompts including retries. 
 TOTAL_ALLOWED_REQS = 30;
@@ -37,7 +42,7 @@ TERMUX_COMMANDS = [
   'termux-open',
   'termux-call-log',
   'termux-open-url',
-  'termux-camera-info',
+  //'termux-camera-info',
   //'termux-reload-settings',
   'termux-camera-photo',
   //'termux-reset',
@@ -104,15 +109,66 @@ const fs = require('fs');
 const vm = require('vm');
 const readline = require('readline');
 
+
+let termux_help;
+if (USE_HELP_HELPER) {
+  let helpData;
+  try {
+  helpData = fs.readFileSync('help.json');
+  termux_help = JSON.parse(helpData);
+  } catch(e) { 
+  termux_help = {};
+  console.log('Error: Couldnt load help.json, returning empty object: ',e) 
+  }
+  
+}
+
+let miniSearch; let MiniSearch; let memories=[];
+if(ENABLE_MEMORY) {
+    //npm install minisearch
+    MiniSearch = require('minisearch')
+    
+    miniSearch = new MiniSearch({
+      fields: ['title', 'text'], // fields to index for full-text search
+      storeFields: ['title', 'text'] // fields to return with search results
+    })
+    
+    
+    // Example memories structure:
+    let memories_ex = [
+      {
+        id: 1,
+        title: 'Speak battery status out loud',
+        text: `REPL[ termux.batteryStatus().then((status) => { try { status=JSON.parse(status); let stats = "The current battery status is " + status["health"] + ", " + status["percentage"] + " percent."; termux.ttsSpeak(stats);console.log('Battery status spoken.')}catch(e){termux.ttsSpeak('Sorry, something went wrong.')} }); ];`,
+        category: 'repl'
+      },
+      ];
+    
+    //get memories:
+    try {
+      const data = fs.readFileSync('memories.json');
+      memories = JSON.parse(data);
+    } catch (err) {
+      console.error('Error: memories.json empty or corrupt, creating new file.')
+      fs.writeFileSync('memories.json', JSON.stringify(memories_ex));
+      memories = memories_ex
+    }
+    
+    // Index all documents
+    miniSearch.addAll(memories)
+}
+
+
+
 var global_history = `Available Plugins:
 * Node.js REPL: 
 REPL[inputString]
-Usage: This is a sandboxed Node.js REPL, it is NOT a bash prompt. There is a single-directory file saving and reading mechanism: fs.readFileSync & fs.writeFileSync are the only fs methods that work, and no '/' dir hierarchy exists. Also, the global ALLOWED_FUNCTIONS array contains a READ-ONLY list of modules in the sandbox.
+Usage: This is a sandboxed Node.js REPL, it is NOT a bash prompt. There is a single-directory file saving and reading mechanism: fs.readFileSync & fs.writeFileSync are the only 'fs' methods that work, and no '/' dir hierarchy exists. Also, the global ALLOWED_FUNCTIONS array contains a READ-ONLY list of all modules in the sandbox.
 * Termux-api:
     Usage: Ex:'termux-tts-speak -r1 "hello world"' IS EQUAL TO: 'termux.ttsSpeak("-r1 hello world")' in the REPL. Available commands are listed in termux.availableCommands. The methods all return Promises, so .then() chaining is required.
 Rules:
 Pay attention to command outputs! Each line begins with 'Prefix: ' to signify input type. You will be informed after each step what your next task is. Task history will be listed here:
-[BEGIN]
+[EXAMPLE]
 Question: use termux-api to speak the battery status.
 Observation: The Termux-api available commands are at termux.availableCommands.
 Thought: I will list the available plugins and look for something appropriate.
@@ -121,10 +177,11 @@ Result:
 console.log: 'batteryStatus,ttsSpeak,toast,notificationList,smsList,vibrate,notification
 stdout:N/A
 stderr:N/A
-Thought: I can use the command 'batteryStatus' and 'ttsSpeak' in the REPL. I dont know its usage but I can check that by calling it with '-h'.
-Action: REPL[ termux.batteryStatus('-h').then(r=>console.log(r)) ]
+Thought: I can use the command 'batteryStatus' and 'ttsSpeak' in the REPL. I dont know its usage but I can check that by calling it with  '-h'.
+Action: REPL[ try { termux.batteryStatus('-h').then(r=>console.log(r)) } catch(e) { cnosole.log('Error: batteryStatus has no command line help:',e ) } ]
 Result:
-console.log: 'Usage: termux-vibrate [-d duration] [-f] Vibrate the device.\n-d duration  the duration to vibrate in ms (default:1000)\n-f force vibration even in silent mode'
+console.log: '{"health": "GOOD","percentage": 23,"plugged": "UNPLUGGED","status": "DISCHARGING","temperature": 42,                              "current": -1337}'
+'Usage: termux-battery-status                                    Get the status of the device battery. Returns a JSON object.'
 stdout:NA
 stderr:NA
 Thought:I now know how to complete the original Question.
@@ -133,8 +190,9 @@ Result:
 console.log: Try success.
 stdout: N/A
 stderr: N/A
-[Finished!]
--------------Next Question!
+[/EXAMPLE]
+[BEGIN]
+HINT: Read memories carefully to skip steps by leveraging what you have already learned.
 Question: `;
 
 
@@ -195,7 +253,7 @@ async function apiReq(message,prefix) {
   let response;
   //manage retries
   for (let i = 0; i < RETRIES_COUNT && req_count < TOTAL_ALLOWED_REQS; i++) {
-    req_count+=1;RETRIES_COUNT++;
+    req_count+=1;
     response = await generateOutput(prompt);
     if(DISPLAY_UNFILTERED) console.log(C_BrightBlack, '['+i+']Unfiltered: ' + response+'\n['+i+']')
     const validatedInput = inputValidator(response, prefix);
@@ -311,20 +369,41 @@ async function delegator(question) {
       // Step 2: Retrieve an observation
       let p;
       let q = 'Question: '+question+'\n';
-      if(first_pass) p= q + 'Task: Create a one-line "Observation: " statement informed by the Question above. Follow the style shown.'
-      if(!first_pass) p='Task: Create a one-line "Observation: " statement informed by the history and Result above. Take special note of the above stdout, stderr and console.log outputs. What did you learn? Knowing what you know now, What other way could you approach solving this problem / answering this question?'
+      if(first_pass) p= q + 'Task: Create a one-line "Observation: " statement informed by the Original Question above. Follow the style shown.'
+      if(!first_pass) p='Task: Create a one-line "Observation: " statement informed by the history and Result above. Take special note of the above stdout, stderr and console.log outputs. What did you learn? Knowing what you know now, Whats the next step to solving this problem / answering this question?'
       observation = await apiReq(p,'Observation');
+      
+      //memory branch
+      if(ENABLE_MEMORY && first_pass) {
+          let results = miniSearch.search(question+' : '+observation)
+          if(results.length >= 1) 
+          {
+              results = results[0]
+              //console.log('restus:',results)
+          let prompt = `The memory plugin has retrieved a memory that may be related to your current task: Score: `+results.score+ `,\nTitle: "`+results.title+`",\nContents: "`+results.text+`"\nTask: Read the code above, and then answer Yes or No: Revise this memory right now to help solve or answer the Question above? If No, provide a one sentence explanation of why the memory is not related to the current task.`
+          console.log(prompt)
+          let useThisMemory = await apiReq(prompt,'YesNo')
+          if(useThisMemory.toLowerCase().startsWith('yes')){
+              observation = true;
+              thought = true;
+              let newAction = await apiReq(`Task: Revise the above memory into an Action: statement in light of current task's requirements`,'Action')
+              action = newAction;
+              
+          }}} //end ENABLE_MEMORY
+      
     }
+    
+    ///
     
     if (!thought) {
       // Step 3: Generate a thought about how to take action
-      let p='Task: (If needed, break down the task into smaller sub-tasks that can be completed using the REPL plugin.) Generate a one-line "Thought: " statement: How will you attempt to solve the task (or sub task) by using the REPL plugin?'
+     let p='Task: Generate a one-line "Thought: " statement: What is step 1 in solving the task (or sub task) by using the REPL plugin?'
       thought = await apiReq(p,'Thought');
     }//end Thought
     
     if (!action) {
       // Step 3: Generate action/plugin request.
-      let p='Task: Using the thought you just generated, create an "Action: " statement that can be executed using the REPL plugin. Syntax: "Action: REPL[ your js code here ]" (without quotes). Its ok if full task cannot be completed in a single REPL run.'
+      let p='Task: Using the thought you just generated, create an "Action: " statement that can be executed using the REPL plugin. Syntax: "Action: REPL[ your js code here ]" (without quotes). '
       action = await apiReq(p,'Action');
     }//end Action
     
@@ -351,11 +430,33 @@ async function delegator(question) {
         
       // Step 6a: Compose a finish statement
       let p='Task: Provide a "Finish: " statement: your conclusion based on above history, answering the Question in full.'
-      action = await apiReq(p,'Finish');
+      let blah = await apiReq(p,'Finish');
       unfinished = false;
       req_count = 1;
+      
+      if(ENABLE_MEMORY) {
+          let isUniqueAction = memories.every(memory => !memory.text.includes(actionObj.actionArgs));
+          if (isUniqueAction) {
+            //create new memory:
+            let p ='Task: Read this action: `'+action+'`. Now, title this action appropriately. Respond with a Title: (syntax: "Title: <5-10 word descriptive searchable phrase>")'
+            //do get
+            let newMemoryTitle=await apiReq(p,'Title')
+            const highestId = memories.reduce((maxId, memory) => {
+              return memory.id > maxId ? memory.id : maxId;
+                }, 0);
+            memories.push({
+                id: highestId+1,
+                title: newMemoryTitle,
+                text: action,
+                category: 'repl'
+            })
+            //save to file.
+            fs.writeFileSync('./memories.json', JSON.stringify(memories));
+            }
+      }
+      
       break;
-    } else {
+    } else { //Yes/No was 'no':
       // Step 6b: Start Again at Thought by deleting Thought & Action & Obs
       first_pass = false;
       observation = null;
@@ -369,6 +470,7 @@ async function delegator(question) {
   if(req_count >= TOTAL_ALLOWED_REQS) 
   {
       console.log(C_Red,'Error: Exceeded API request limit. TOTAL_ALLOWED_REQS = '+TOTAL_ALLOWED_REQS+'\n')
+      req_count =1;
       return 1;
   }
 }//end function
@@ -517,6 +619,10 @@ const termux = {
 for (const cmd of TERMUX_COMMANDS) {
   const propName = cmd.replace(/^termux-/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/-/g, '');
   termux[propName] = async function (...args) {
+  if (USE_HELP_HELPER && args.includes('-h')) {
+      const help = termux_help[cmd]?.help || `No help found for ${propName}`;
+      return help;
+    } else {
     let command = cmd;
     if (args.length > 0) {
         command += ` ${args.join(' ')}`;
@@ -524,13 +630,19 @@ for (const cmd of TERMUX_COMMANDS) {
     return new Promise((resolve, reject) => {
       exec(command, (err, stdout, stderr) => {
         if (err) {
-          reject(err);
+          reject('Error: '+err);
         } else {
-          resolve(stdout.trim());
+            if(stdout && stdout.trim().length > 0) {
+                sandbox.v_stdout+=stdout.trim()+'\n'
+                resolve(stdout.trim());
+            } else {
+                sandbox.v_stdout+='Success: "'+ propName+'" command completed successfully, but with no output.\n'
+                resolve('Success: "'+ propName+'" command completed successfully, but with no output.\n')
+            }
         }
       });
     });
-  };
+  }};
 }
 
 
@@ -658,6 +770,9 @@ return {
  }
  
 }//END of sandbox context
+
+
+
 
 
 
