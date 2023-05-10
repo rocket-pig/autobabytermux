@@ -49,10 +49,10 @@ _(Note these are both written in a way they can be toggled off - Idk why youd wa
 * Other changes: like causing termux-api cmds to give feedback, ala 'cmd completed successfully, but with no output' if otherwise silent has REALLY helped the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
 
 __May 8 23__:
-* Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. And yes, the toast displayed! User can decide what api commands are available to the Agent in the global settings area at the top of the script.
+* Termux:API plugin! Barely tested. But, AA is already getting it! Pretty cool. User can decide what api commands are available to the Agent in the global settings area at the top of the script.
 
 
-![merp](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
+[screenshot](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
 
 
 __May 7 2023__:
@@ -76,6 +76,9 @@ __May 3 2023__: 'fakefs' wrapper allows AA to have a persistent single-dir 'file
 
 
 ### Latest:
+![url](https://i.ibb.co/j3xCvcB/Screenshot-2023-05-10-15-45-12.png)
+
+### Little bit older...
 ![img](https://i.ibb.co/9bJtN7J/Screenshot-2023-05-06-12-23-24.png)
 
 After this, ```cat fakefs.txt``` returns
