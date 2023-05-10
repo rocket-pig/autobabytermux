@@ -36,47 +36,9 @@ The vm instance persists until the script stops.  The Agent has a fake, single-f
 
 ### Latest Updates / Changelog:
 
-__May 10 23__:
+View changelog --> [click here](https://github.com/rocket-pig/autobabytermux/wiki)
 
-* Enable termux-api 'help helper': termux-api cmds have their help @ '-help' OR '--help' OR '-h' OR sometimes no hook at all. Sometimes the help is @ stdout.. OR stderr. Sometimes the command hangs for 15 seconds first.  I finally wrote a long convoluted and tiresome script to aggregate them all into a json file.  Turning this on means you want REPL calls to '-h' to return text from the json instead of watching the Agent bomb out for eleventy tries.
-USE_HELP_HELPER = true;
-
-* Enable 'Memory' chain of events. _(requires: npm install minisearch, a tiny little 5K thing with no deps.)_ Previous completed tasks will be searched and top match included in conversation. Agent is prompted to revise top match (or dismiss if not relevant). Agent will also be prompted after successful 'Finish' with titling and saving new memory. Six or so memories are already included, probably add more over time.
-ENABLE_MEMORY = true;
-
-See https://github.com/rocket-pig/autobabytermux/blob/main/README.md#latest for a screenshot.
-
-_(Note these are both written in a way they can be toggled off - Idk why youd want to. But its all optional. Make sure you re-clone and get the new .json files.)_
-
-* Other changes: like causing termux-api cmds to give feedback, ala 'cmd completed successfully, but with no output' if otherwise silent has REALLY helped the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
-
-__May 8 23__:
-* Termux:API plugin! Barely tested. But, AA is already getting it! Pretty cool. User can decide what api commands are available to the Agent in the global settings area at the top of the script.
-
-
-[screenshot](https://i.ibb.co/QFJpnXX/Screenshot-2023-05-08-13-54-12.png)
-
-
-__May 7 2023__:
-* Found a stupid typo: stdout/stderr/log from vm works as it should have been all along now.
-* Added shortcut back that slides into a vm REPL shell. Changed it to '*s' (The [s] is not fun to type when you dont have your external keyboard)
-* A ton of little bugs (like not sending the prefix to the global_history) that while things were still working before, its even better/faster now.
-* __I tested removing the 2k char preprompt__ and preliminary tests show that the single-sentence subprompts __may be all thats needed_. If so that saves an absolute ton of API credits.  Ill make that the default after more testing.
-* process module is now correctly merged with stdout/stderr overrides so its otherwise functional
-* changed the write/read methods to what is actually happening underneath...its just less confusing.
-* ton of other tweaks and upgrades I cant recall now.
-
-__May 6 2023__:
-* Removed useless langchain dependency. We were simply being lazy and using their openai interface. Now just uses openai official module.
-* _Complete code rewrite_: The Q/A flow is now controlled by a delegator that steps thru the Q-O-T-A-F process, with re-prompts each time to keep the LLM on track. It is. so. much faster and more reliable than the previous way of attempting to parse entire return body!  This way we arent _ever_ consuming or trying to handle hallucinations.
-* The overall readability is also just incomparably superior to the previous code.  I had ironed out all the necessary parts but it needed this refactoring and cleanup something fierce.
-* It can now be run with a question (in quotes) as the first arg on command line.
-* More settings at the top of the file as well for controlling output verbosity, API request limits etc.
-
-__May 3 2023__: 'fakefs' wrapper allows AA to have a persistent single-dir 'filesystem' that's saved to fakefs.txt and restored each time.  The sandbox otherwise prevents filesystem writes *even to the sandbox* (using normal methods.) So you can let it do it's thing without worrying about it trashing your drive, AND be able to run commands that save/restore states/data.
-
-
-
+## picsordidnthappen:
 ### Latest:
 ![url](https://i.ibb.co/j3xCvcB/Screenshot-2023-05-10-15-45-12.png)
 
