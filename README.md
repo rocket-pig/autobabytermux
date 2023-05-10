@@ -46,6 +46,8 @@ ENABLE_MEMORY = true;
 
 (Note these are both written in a way they can be toggled off - Idk why youd want to. But its all optional. Make sure you re-clone and get the new .json files.)
 
+Other changes like causing termux-api cmds to give feedback 'cmd completed successfully, but with no output' if otherwise silent REALLY helps the Agent move on. It..is a bit sad really, watching it go around in circles about how to verify the command completed :/ Well, not anymore. :)
+
 __May 8 23__:
 * Termux:API plugin! Barely tested. But see below screenshot, AA is already getting it! Pretty cool. And yes, the toast displayed! User can decide what api commands are available to the Agent in the global settings area at the top of the script.
 
