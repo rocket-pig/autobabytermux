@@ -29,6 +29,7 @@ In GPT's words (later appended by me):
 ```npm install openai```
 
 (Optional: ```apt install termux-api``` if you want AA to have access to all [this glory](https://wiki.termux.com/wiki/Termux:API)
+and ```npm install minisearch``` (5Kb) if you want to make/recall memories. )
 
 Have an OpenAI key ready, stick it on first line of script.  Then, run
 
