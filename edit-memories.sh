@@ -1,7 +1,7 @@
 #!/bin/bash
 
 : <<'begin_and_end'
-This was 100% written by GPT on its first try, using these insructions only (which is also a handy way to describe it, so:)
+This was ~~100%~~, eh 60% written by GPT on its ~~first~~ (lets make that 17th) try, using these insructions only (which is also a handy way to describe it, so:)
 I want you to write a shell script which uses 'jq' json tool. it should perform this way:
 1. start w a numbered listing of all 'memories' by title.
 2. prompt user to select title by number
@@ -24,15 +24,23 @@ memories=$(cat memories.json)
 # Generate list of memories with numbered IDs and titles
 memories_list=$(echo $memories | jq -r '.[] | "\(.title)"')
 
+# Create an array of memory IDs
+memory_ids=($(echo $memories | jq -r '.[].id'))
+
+# Generate a mapping between sequential menu numbers and memory IDs
+declare -A memory_id_map
+for (( i=0; i<${#memory_ids[@]}; i++ )); do
+  memory_id_map["$((i+1))"]="${memory_ids[$i]}"
+done
+
 # Prompt user to select a memory by number
 echo "Select a memory to edit or delete:"
 echo "$memories_list" | nl -s ") "
-read -p "Enter a number: " memory_id
-
-((memory_id--))
+read -p "Enter a number: " menu_number
+memory_id="${memory_id_map[$menu_number]}"
 
 # Get the index of the selected memory in the JSON array
-memory_index=$(echo $memories | jq -r ". | map(select(.id == $memory_id)) | .[0].id")
+memory_index=$(echo $memories | jq -r ".[] | select(.id == \"$memory_id\")")
 
 # Check if the memory was found
 if [ "$memory_index" = "null" ]; then
@@ -41,7 +49,7 @@ if [ "$memory_index" = "null" ]; then
 fi
 
 # Prompt user to edit or delete the memory
-memory=$(echo $memories | jq -r ".[$memory_index | tonumber]")
+memory=$(echo $memories | jq -r ".[] | select(.id == "$memory_id")")
 echo "Selected memory:"
 echo "$memory"
 echo "What would you like to do?"
