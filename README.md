@@ -3,7 +3,7 @@
 
 In GPT's words (later appended by me):
 
->Autobabytermux is a project that is realizing multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will use engaage in a chain of thought reasoning process to autonomously arrive at a solution to your request/task, utilizing plugins including: 
+>Autobabytermux is a project that is realizing multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will engage in a chain of thought reasoning process to autonomously arrive at a solution to your request/task, utilizing plugins including: 
 >
 > Node REPL : a sanboxed javascript interpreter with a fakefs allowing scripts to read/write that are captured in a single JSON object saved as _'fakefs.json'_ and restored each time for a pseudo persistence (with the obvious side effect of it otherwise being unable to effect your actual fs).  
 
