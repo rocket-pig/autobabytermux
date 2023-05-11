@@ -1,10 +1,15 @@
 # autobabytermux
 ![url](https://i.ibb.co/447k88W/Screenshot-2023-05-08-20-42-30.png)
 
-In GPT's words:
+In GPT's words (later appended by me):
 
->Autobabytermux is a project that enables multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins: Node REPL and/or Termux:API to arrive at an answer/solution. 
+>Autobabytermux is a project that is realizing multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins - 
+>Node REPL : a sanboxed javascript interpreter with a fakefs allowing scripts to read/write that are captured in a single JSON object saved as _'fakefs.json'_ and restored each time for a pseudo persistence. 
 
+> [Termux:API](https://wiki.termux.com/wiki/Termux:API) : Termux has a command line scriptable interface to a large amount of Android OS hardware functions - global toggles, sms phone logs' current notifications, flashlight vibration you name it. The whole enterprise. This plugin allows (and informs (and enables) ) the AA to interact directly with the hardware its on.
+
+> Memories: Upon successful completion of a task the Agent is asked to title their script and summarize it. It is then saved to a memories.json object. Now, upon asking a Question, these memories are keyword searched using the Agent's own Observations.
+> 
 >The AA is an incredible tool that can do so much more than just generate coherent text. With the ability to leverage plugins (and new ones that can be easily written), the LLM can tackle complex tasks that it previously couldn't. It can now provide exact answers to complicated math problems, automate programming and debugging tasks, interact with almost every aspect of your OS via Termux:API, and much more: the potential for "self-healing", the AA could even begin to write and revise its own codebase, creating a truly autonomous and self-sustaining system. The future is exciting for the AA and its potential applications.
 
 >At its core, autobabytermux is an autonomous AI agent that can run entirely on your phone. It requires only ONE npm module - openai - to function. 
