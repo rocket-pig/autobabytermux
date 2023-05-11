@@ -16,51 +16,54 @@ If you trash the syntax, ABT will overwrite the file with a single default memor
 
 begin_and_end
 
-
+#!/bin/bash
 
 # Load JSON data from memories.json
 memories=$(cat memories.json)
 
-# Count memories and generate list of titles
-num_memories=$(echo $memories | jq '. | length')
-titles=$(echo $memories | jq -r '.[].title')
+# Generate list of memories with numbered IDs and titles
+memories_list=$(echo $memories | jq -r '.[] | "\(.title)"')
 
 # Prompt user to select a memory by number
 echo "Select a memory to edit or delete:"
-echo "$titles" | cat -n
-read -p "Enter a number: " memory_num
+echo "$memories_list" | nl -s ") "
+read -p "Enter a number: " memory_id
 
-# Get the selected memory's index in the JSON array
-memory_index=$((memory_num - 1))
+((memory_id--))
 
-# Prompt user to edit or delete the selected memory
-echo "Edit or delete memory?"
-select choice in "Edit" "Delete"; do
-  case $choice in
-    Edit)
-      # Prompt user to edit the title or text
-      read -p "Enter a new title or press Enter to keep the existing one: " new_title
-      read -p "Enter new text or press Enter to keep the existing one: " new_text
+# Get the index of the selected memory in the JSON array
+memory_index=$(echo $memories | jq -r ". | map(select(.id == $memory_id)) | .[0].id")
 
-      # Update the selected memory's title and/or text if the user entered new values
-      if [ "$new_title" != "" ]; then
-        memories=$(echo $memories | jq --argjson index $memory_index --arg new_title "$new_title" '.[$index].title = $new_title')
-      fi
+# Check if the memory was found
+if [ "$memory_index" = "null" ]; then
+    echo "Memory not found."
+    exit 1
+fi
 
-      if [ "$new_text" != "" ]; then
-        memories=$(echo $memories | jq --argjson index $memory_index --arg new_text "$new_text" '.[$index].text = $new_text')
-      fi
+# Prompt user to edit or delete the memory
+memory=$(echo $memories | jq -r ".[$memory_index | tonumber]")
+echo "Selected memory:"
+echo "$memory"
+echo "What would you like to do?"
+echo "1) Edit"
+echo "2) Delete"
+read -p "Enter a number: " action
 
-      break
-      ;;
-    Delete)
-      # Remove the selected memory from the JSON array
-      memories=$(echo $memories | jq "del(.[${memory_index}])")
+# Edit or delete the memory based on user input
+if [ "$action" = "1" ]; then
+    # Edit the memory
+    echo "Enter new title (leave blank to keep existing title):"
+    read -p "> " new_title
+    echo "Enter new text (leave blank to keep existing text):"
+    read -p "> " new_text
+    new_memory=$(echo $memory | jq --arg new_title "$new_title" --arg new_text "$new_text" '. | if ($new_title != "") then .title = $new_title else . end | if ($new_text != "") then .text = $new_text else . end')
+    memories=$(echo $memories | jq ".[$memory_index | tonumber] = $new_memory")
+    echo "$memories" > memories.json
+    echo "Memory updated."
 
-      break
-      ;;
-  esac
-done
-
-# Save the updated JSON data to memories.json
-echo $memories > memories.json
+elif [ "$action" = "2" ]; then
+    # Delete the memory
+    memories=$(echo $memories | jq "del(.[$memory_index | tonumber])")
+    echo "$memories" > memories.json
+    echo "Memory deleted."
+fi
