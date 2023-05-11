@@ -5,7 +5,7 @@ In GPT's words (later appended by me):
 
 >Autobabytermux is a project that is realizing multi-turn feedback reasoning through an autonomous agent [AA]. Simply input your API key and ask a question, and autobabytermux will utilize plugins - 
 >
-> Node REPL : a sanboxed javascript interpreter with a fakefs allowing scripts to read/write that are captured in a single JSON object saved as _'fakefs.json'_ and restored each time for a pseudo persistence. 
+> Node REPL : a sanboxed javascript interpreter with a fakefs allowing scripts to read/write that are captured in a single JSON object saved as _'fakefs.json'_ and restored each time for a pseudo persistence (with the obvious side effect of it otherwise being unable to effect your actual fs).  
 
 > [Termux:API](https://wiki.termux.com/wiki/Termux:API) : Termux has a command line scriptable interface to a large amount of Android OS hardware functions - global toggles, sms phone logs' current notifications, flashlight vibration you name it. The whole enterprise. This plugin allows (and informs (and enables) ) the AA to interact directly with the hardware its on.
 
